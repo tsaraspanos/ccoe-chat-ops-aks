@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-ui
+  labels:
+    app: chat-ui
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: chat-ui
+  template:
+    metadata:
+      labels:
+        app: chat-ui
+    spec:
+      containers:
+        - name: chat-ui
+          image: myregistry.azurecr.io/chat-ui:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+            - name: N8N_WEBHOOK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: chat-ui-secrets
+                  key: n8n-webhook-url
+            - name: ALLOWED_ORIGIN
+              value: "https://your-frontend-domain.example.com"
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      restartPolicy: Always
+---
+# Secret template (create this separately with actual values)
+# kubectl create secret generic chat-ui-secrets \
+#   --from-literal=n8n-webhook-url='https://your-n8n-domain/webhook/chat-agent'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: chat-ui-secrets
+type: Opaque
+stringData:
+  n8n-webhook-url: "REPLACE_WITH_YOUR_N8N_WEBHOOK_URL"

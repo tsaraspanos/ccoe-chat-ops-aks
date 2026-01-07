@@ -1,73 +1,228 @@
-# Welcome to your Lovable project
+# Chat UI Microservice
 
-## Project info
+A production-ready full-stack TypeScript chat UI microservice designed for Azure Kubernetes Service (AKS). Features a React frontend with voice recording and file attachments, and an Express backend that integrates with n8n for AI-powered responses.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- 💬 **Real-time Chat UI** - Clean, modern interface with user/assistant message separation
+- 🎤 **Voice Recording** - Browser-based voice recording using MediaRecorder API
+- 📎 **File Attachments** - Support for multiple file uploads (images, PDFs, etc.)
+- 🔗 **n8n Integration** - Webhook-based integration with n8n AI Agent workflows
+- 🐳 **Docker Ready** - Multi-stage Dockerfile for production deployment
+- ☸️ **Kubernetes Ready** - Deployment and Service manifests for AKS
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**: React + TypeScript + Tailwind CSS
+- **Backend**: Node.js + Express + TypeScript
+- **Build**: Vite (frontend), tsc (backend)
+- **Container**: Docker with multi-stage build
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Environment Variables
 
-Changes made via Lovable will be committed automatically to this repo.
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PORT` | No | `8080` | Server port |
+| `N8N_WEBHOOK_URL` | Yes | - | n8n webhook endpoint URL |
+| `ALLOWED_ORIGIN` | No | `*` | CORS allowed origin |
 
-**Use your preferred IDE**
+## Local Development
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Prerequisites
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Node.js 18+
+- npm or yarn
 
-Follow these steps:
+### Running Locally
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+1. Clone the repository and install dependencies:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+npm install
+cd server && npm install
 ```
 
-**Edit a file directly in GitHub**
+2. Set environment variables:
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+export N8N_WEBHOOK_URL="https://your-n8n-instance/webhook/chat-agent"
+export ALLOWED_ORIGIN="http://localhost:5173"
+```
 
-**Use GitHub Codespaces**
+3. Run development servers:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```bash
+# Terminal 1: Frontend (Vite dev server)
+npm run dev
 
-## What technologies are used for this project?
+# Terminal 2: Backend (Express server)
+cd server && npm run dev
+```
 
-This project is built with:
+4. Open http://localhost:5173
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Building for Production
 
-## How can I deploy this project?
+```bash
+# Build frontend
+npm run build
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+# Build backend
+cd server && npm run build
 
-## Can I connect a custom domain to my Lovable project?
+# Start production server
+cd server && npm start
+```
 
-Yes, you can!
+## Docker
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Building the Image
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```bash
+docker build -t chat-ui:latest .
+```
+
+### Running the Container
+
+```bash
+docker run -p 8080:8080 \
+  -e N8N_WEBHOOK_URL="https://your-n8n-instance/webhook/chat-agent" \
+  -e ALLOWED_ORIGIN="https://your-frontend-domain.com" \
+  chat-ui:latest
+```
+
+## Kubernetes Deployment (AKS)
+
+### 1. Create Secrets
+
+```bash
+kubectl create secret generic chat-ui-secrets \
+  --from-literal=n8n-webhook-url='https://your-n8n-instance/webhook/chat-agent'
+```
+
+### 2. Update Image Reference
+
+Edit `k8s/deployment.yaml` and replace the image reference:
+
+```yaml
+image: myregistry.azurecr.io/chat-ui:1.0.0
+```
+
+### 3. Deploy
+
+```bash
+kubectl apply -f k8s/deployment.yaml
+kubectl apply -f k8s/service.yaml
+```
+
+### 4. Verify Deployment
+
+```bash
+kubectl get pods -l app=chat-ui
+kubectl get svc chat-ui
+```
+
+## n8n Integration Setup
+
+1. Create a new workflow in n8n
+2. Add a **Webhook** node as the trigger:
+   - HTTP Method: POST
+   - Path: `chat-agent`
+   - Response Mode: `Last Node`
+3. Add your AI Agent node (e.g., OpenAI, Claude, etc.)
+4. Connect the webhook to your AI logic
+5. Return a response in this format:
+
+```json
+{
+  "answer": "Assistant reply text",
+  "meta": {
+    "toolCalls": [],
+    "raw": {}
+  }
+}
+```
+
+6. Copy the webhook URL and set it as `N8N_WEBHOOK_URL`
+
+## API Endpoints
+
+### `GET /health`
+
+Health check endpoint for Kubernetes probes.
+
+**Response:**
+```json
+{ "status": "ok" }
+```
+
+### `POST /api/chat`
+
+Send a chat message with optional attachments.
+
+**Request (JSON - text only):**
+```json
+{
+  "sessionId": "uuid",
+  "message": "Hello, how can you help me?"
+}
+```
+
+**Request (multipart/form-data):**
+- `sessionId` (string) - Session identifier
+- `message` (string, optional) - User message
+- `files[]` (files, optional) - File attachments
+- `voice` (file, optional) - Voice recording
+
+**Response:**
+```json
+{
+  "answer": "I can help you with...",
+  "meta": {
+    "toolCalls": [],
+    "raw": {}
+  }
+}
+```
+
+## Project Structure
+
+```
+├── src/                    # Frontend source
+│   ├── components/         # React components
+│   │   └── chat/          # Chat-specific components
+│   ├── hooks/             # Custom React hooks
+│   ├── lib/               # Utilities and API client
+│   ├── types/             # TypeScript types
+│   └── pages/             # Page components
+├── server/                 # Backend source
+│   ├── src/
+│   │   ├── integrations/  # External integrations (n8n)
+│   │   ├── routes/        # Express routes
+│   │   └── index.ts       # Server entry point
+│   └── package.json
+├── k8s/                    # Kubernetes manifests
+│   ├── deployment.yaml
+│   └── service.yaml
+├── Dockerfile             # Multi-stage Docker build
+└── README.md
+```
+
+## Extending Integrations
+
+The backend is designed to easily add new integrations. To add a new AI provider:
+
+1. Create a new client in `server/src/integrations/`:
+
+```typescript
+// server/src/integrations/myProvider.ts
+export async function sendMessageToMyProvider(payload: ChatPayload): Promise<ChatResponse> {
+  // Implementation
+}
+```
+
+2. Update the chat route to use your new provider.
+
+## License
+
+MIT
