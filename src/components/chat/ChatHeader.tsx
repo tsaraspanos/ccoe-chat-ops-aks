@@ -1,0 +1,45 @@
+import { Bot, Trash2, Settings } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+interface ChatHeaderProps {
+  sessionId: string;
+  onClearChat: () => void;
+}
+
+export function ChatHeader({ sessionId, onClearChat }: ChatHeaderProps) {
+  return (
+    <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50 backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+          <Bot className="w-5 h-5 text-white" />
+        </div>
+        <div>
+          <h1 className="text-sm font-semibold text-foreground">AI Assistant</h1>
+          <p className="text-[10px] text-muted-foreground">
+            Session: {sessionId.slice(0, 8)}...
+          </p>
+        </div>
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
+            <Settings className="w-4 h-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem onClick={onClearChat} className="text-destructive focus:text-destructive">
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear conversation
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </header>
+  );
+}
