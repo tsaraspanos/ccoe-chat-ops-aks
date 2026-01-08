@@ -34,7 +34,12 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
         throw new Error(`Chat request failed: ${response.statusText}`);
       }
 
-      return response.json();
+      const data = await response.json();
+      // Handle n8n async response format
+      if (data.answer) {
+        return data;
+      }
+      return { answer: data.message || 'Message sent', meta: {} };
     } else {
       // Use multipart/form-data even for text-only messages to avoid CORS preflight issues
       const formData = new FormData();
@@ -53,7 +58,12 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
         throw new Error(`Chat request failed: ${response.statusText}`);
       }
 
-      return response.json();
+      const data = await response.json();
+      // Handle n8n async response format
+      if (data.answer) {
+        return data;
+      }
+      return { answer: data.message || 'Message sent', meta: {} };
     }
   } catch (error) {
     console.error('Error sending message to n8n:', error);
