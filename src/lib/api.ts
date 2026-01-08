@@ -1,13 +1,11 @@
 import { ChatRequest, ChatResponse } from '@/types/chat';
 
 const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger';
-const N8N_POLL_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-poll';
 
-// Polling configuration
-const POLL_INTERVAL_MS = 2000; // Poll every 2 seconds
-const MAX_POLL_ATTEMPTS = 300; // Max 10 minutes (300 * 2s)
+// Server webhook endpoints (your Express server)
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
-interface PollResponse {
+interface StreamUpdate {
   status: 'pending' | 'completed' | 'error';
   answer?: string;
   meta?: Record<string, unknown>;
@@ -15,8 +13,8 @@ interface PollResponse {
 }
 
 /**
- * Send chat message and poll for the response.
- * n8n should return a jobId immediately, then we poll until completion.
+ * Send chat message and listen for real-time updates via SSE.
+ * n8n should return a jobId immediately, then push updates to the webhook.
  */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
   const formData = new FormData();
@@ -54,7 +52,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       return triggerData;
     }
 
-    // Get the jobId for polling
+    // Get the jobId for SSE streaming
     const jobId = triggerData.jobId || triggerData.executionId || triggerData.id;
     
     if (!jobId) {
@@ -65,8 +63,8 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       };
     }
 
-    // Step 2: Poll for the result
-    return await pollForResult(jobId, request.sessionId);
+    // Step 2: Listen for updates via SSE (with polling fallback)
+    return await waitForResult(jobId);
   } catch (error) {
     console.error('Error sending message to n8n:', error);
     throw error;
@@ -74,29 +72,78 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 }
 
 /**
- * Poll the n8n webhook for the job result
+ * Wait for workflow result using SSE stream with polling fallback
  */
-async function pollForResult(jobId: string, sessionId: string): Promise<ChatResponse> {
-  let attempts = 0;
+async function waitForResult(jobId: string): Promise<ChatResponse> {
+  // Try SSE first
+  try {
+    return await listenForUpdates(jobId);
+  } catch (sseError) {
+    console.warn('SSE failed, falling back to polling:', sseError);
+    return await pollForResult(jobId);
+  }
+}
 
-  while (attempts < MAX_POLL_ATTEMPTS) {
-    attempts++;
+/**
+ * Listen for updates via Server-Sent Events
+ */
+function listenForUpdates(jobId: string): Promise<ChatResponse> {
+  return new Promise((resolve, reject) => {
+    const streamUrl = `${API_BASE_URL}/api/webhook/stream/${jobId}`;
+    const eventSource = new EventSource(streamUrl);
+    
+    const timeout = setTimeout(() => {
+      eventSource.close();
+      reject(new Error('SSE connection timed out'));
+    }, 600000); // 10 minute timeout
 
+    eventSource.onmessage = (event) => {
+      try {
+        const data: StreamUpdate = JSON.parse(event.data);
+        
+        if (data.status === 'completed' && data.answer) {
+          clearTimeout(timeout);
+          eventSource.close();
+          resolve({
+            answer: data.answer,
+            meta: data.meta || {},
+          });
+        }
+        
+        if (data.status === 'error') {
+          clearTimeout(timeout);
+          eventSource.close();
+          reject(new Error(data.error || 'Workflow execution failed'));
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse SSE message:', parseError);
+      }
+    };
+
+    eventSource.onerror = (error) => {
+      clearTimeout(timeout);
+      eventSource.close();
+      reject(error);
+    };
+  });
+}
+
+/**
+ * Fallback polling for job result
+ */
+async function pollForResult(jobId: string): Promise<ChatResponse> {
+  const maxAttempts = 300;
+  const pollInterval = 2000;
+  
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const pollFormData = new FormData();
-      pollFormData.append('jobId', jobId);
-      pollFormData.append('sessionId', sessionId);
-
-      const response = await fetch(N8N_POLL_URL, {
-        method: 'POST',
-        body: pollFormData,
-      });
-
+      const response = await fetch(`${API_BASE_URL}/api/webhook/status/${jobId}`);
+      
       if (!response.ok) {
         throw new Error(`Poll request failed: ${response.statusText}`);
       }
 
-      const data: PollResponse = await response.json();
+      const data: StreamUpdate = await response.json();
 
       if (data.status === 'completed' && data.answer) {
         return {
@@ -109,12 +156,10 @@ async function pollForResult(jobId: string, sessionId: string): Promise<ChatResp
         throw new Error(data.error || 'Workflow execution failed');
       }
 
-      // Still pending, wait and poll again
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
     } catch (error) {
-      // If polling fails, wait and try again (network hiccups)
-      console.warn(`Poll attempt ${attempts} failed:`, error);
-      await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+      console.warn(`Poll attempt ${attempt + 1} failed:`, error);
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
   }
 
