@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import chatRouter from './routes/chat';
 import healthRouter from './routes/health';
+import webhookRouter from './routes/webhook';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -23,6 +24,9 @@ app.use('/health', healthRouter);
 
 // Chat API endpoint
 app.use('/api/chat', chatRouter);
+
+// Webhook endpoint for n8n to push updates
+app.use('/api/webhook', webhookRouter);
 
 // Serve static frontend files in production
 const staticPath = path.join(__dirname, '../../dist');
