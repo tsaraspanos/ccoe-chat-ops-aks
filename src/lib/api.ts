@@ -1,6 +1,6 @@
 import { ChatRequest, ChatResponse } from '@/types/chat';
 
-const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/teams-trigger';
+const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger';
 
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
   const hasFiles = (request.files && request.files.length > 0) || request.voice;
