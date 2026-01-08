@@ -65,4 +65,4 @@ metadata:
   name: chat-ui-secrets
 type: Opaque
 stringData:
-  n8n-webhook-url: "REPLACE_WITH_YOUR_N8N_WEBHOOK_URL"
+  n8n-webhook-url: "https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger"
