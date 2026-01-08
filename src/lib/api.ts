@@ -36,18 +36,17 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 
       return response.json();
     } else {
-      // JSON for text-only messages
+      // Use multipart/form-data even for text-only messages to avoid CORS preflight issues
+      const formData = new FormData();
+      formData.append('sessionId', request.sessionId);
+
+      if (request.message) {
+        formData.append('message', request.message);
+      }
+
       const response = await fetch(N8N_WEBHOOK_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId: request.sessionId,
-          message: request.message,
-          attachments: [],
-          voice: null,
-        }),
+        body: formData,
       });
 
       if (!response.ok) {
