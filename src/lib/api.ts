@@ -46,25 +46,60 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     }
 
     const triggerData = await triggerResponse.json();
+    console.log('n8n response:', triggerData);
     
-    // If n8n returns an immediate answer (sync response), return it
+    // Handle different n8n response formats
+    // 1. Direct answer field
     if (triggerData.answer) {
-      return triggerData;
+      return { answer: triggerData.answer, meta: triggerData.meta || {} };
+    }
+    
+    // 2. Array response from n8n (common format)
+    if (Array.isArray(triggerData) && triggerData.length > 0) {
+      const firstItem = triggerData[0];
+      if (firstItem.answer) {
+        return { answer: firstItem.answer, meta: firstItem.meta || {} };
+      }
+      if (firstItem.output) {
+        return { answer: firstItem.output, meta: {} };
+      }
+      if (firstItem.message) {
+        return { answer: firstItem.message, meta: {} };
+      }
+      if (firstItem.text) {
+        return { answer: firstItem.text, meta: {} };
+      }
+      // Return stringified first item as fallback
+      return { answer: JSON.stringify(firstItem), meta: {} };
     }
 
-    // Get the jobId for SSE streaming
+    // 3. Check for jobId to use async SSE flow
     const jobId = triggerData.jobId || triggerData.executionId || triggerData.id;
     
-    if (!jobId) {
-      // Fallback for different response formats
-      return { 
-        answer: triggerData.message || triggerData.text || triggerData.response || 'Response received', 
-        meta: triggerData.meta || {} 
-      };
+    if (jobId) {
+      // Async mode: wait for webhook callback
+      return await waitForResult(jobId);
     }
-
-    // Step 2: Listen for updates via SSE (with polling fallback)
-    return await waitForResult(jobId);
+    
+    // 4. Other common response fields
+    if (triggerData.message) {
+      return { answer: triggerData.message, meta: triggerData.meta || {} };
+    }
+    if (triggerData.text) {
+      return { answer: triggerData.text, meta: triggerData.meta || {} };
+    }
+    if (triggerData.response) {
+      return { answer: triggerData.response, meta: triggerData.meta || {} };
+    }
+    if (triggerData.output) {
+      return { answer: triggerData.output, meta: triggerData.meta || {} };
+    }
+    
+    // 5. Last resort: stringify the entire response
+    return { 
+      answer: JSON.stringify(triggerData, null, 2), 
+      meta: {} 
+    };
   } catch (error) {
     console.error('Error sending message to n8n:', error);
     throw error;
