@@ -2,12 +2,11 @@ import { ChatRequest, ChatResponse } from '@/types/chat';
 
 const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger';
 
-// Backend API URL for webhook/SSE endpoints
-// Set VITE_API_URL to your deployed backend (e.g., https://your-backend.com)
-// Leave empty if backend is on same origin (Option A: co-located deployment)
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+// Lovable Cloud edge function URL for webhook polling
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://pgafpfqhsmaanaawjkbf.supabase.co';
+const WEBHOOK_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/webhook-update`;
 
-console.log('API Config:', { API_BASE_URL: API_BASE_URL || '(same origin)', N8N_WEBHOOK_URL });
+console.log('API Config:', { WEBHOOK_FUNCTION_URL, N8N_WEBHOOK_URL });
 
 interface StreamUpdate {
   status: 'pending' | 'completed' | 'error';
@@ -111,64 +110,14 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 }
 
 /**
- * Wait for workflow result using SSE stream with polling fallback
+ * Wait for workflow result using polling (SSE not supported by edge functions)
  */
 async function waitForResult(jobId: string): Promise<ChatResponse> {
-  // Try SSE first
-  try {
-    return await listenForUpdates(jobId);
-  } catch (sseError) {
-    console.warn('SSE failed, falling back to polling:', sseError);
-    return await pollForResult(jobId);
-  }
+  return await pollForResult(jobId);
 }
 
 /**
- * Listen for updates via Server-Sent Events
- */
-function listenForUpdates(jobId: string): Promise<ChatResponse> {
-  return new Promise((resolve, reject) => {
-    const streamUrl = `${API_BASE_URL}/api/webhook/stream/${jobId}`;
-    const eventSource = new EventSource(streamUrl);
-    
-    const timeout = setTimeout(() => {
-      eventSource.close();
-      reject(new Error('SSE connection timed out'));
-    }, 600000); // 10 minute timeout
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data: StreamUpdate = JSON.parse(event.data);
-        
-        if (data.status === 'completed' && data.answer) {
-          clearTimeout(timeout);
-          eventSource.close();
-          resolve({
-            answer: data.answer,
-            meta: data.meta || {},
-          });
-        }
-        
-        if (data.status === 'error') {
-          clearTimeout(timeout);
-          eventSource.close();
-          reject(new Error(data.error || 'Workflow execution failed'));
-        }
-      } catch (parseError) {
-        console.warn('Failed to parse SSE message:', parseError);
-      }
-    };
-
-    eventSource.onerror = (error) => {
-      clearTimeout(timeout);
-      eventSource.close();
-      reject(error);
-    };
-  });
-}
-
-/**
- * Fallback polling for job result
+ * Poll for job result from Lovable Cloud edge function
  */
 async function pollForResult(jobId: string): Promise<ChatResponse> {
   const maxAttempts = 300;
@@ -176,7 +125,7 @@ async function pollForResult(jobId: string): Promise<ChatResponse> {
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/webhook/status/${jobId}`);
+      const response = await fetch(`${WEBHOOK_FUNCTION_URL}/status/${jobId}`);
       
       if (!response.ok) {
         throw new Error(`Poll request failed: ${response.statusText}`);
