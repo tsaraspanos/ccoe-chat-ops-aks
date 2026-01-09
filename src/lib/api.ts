@@ -2,8 +2,12 @@ import { ChatRequest, ChatResponse } from '@/types/chat';
 
 const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger';
 
-// Server webhook endpoints (your Express server)
+// Backend API URL for webhook/SSE endpoints
+// Set VITE_API_URL to your deployed backend (e.g., https://your-backend.com)
+// Leave empty if backend is on same origin (Option A: co-located deployment)
 const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+
+console.log('API Config:', { API_BASE_URL: API_BASE_URL || '(same origin)', N8N_WEBHOOK_URL });
 
 interface StreamUpdate {
   status: 'pending' | 'completed' | 'error';
