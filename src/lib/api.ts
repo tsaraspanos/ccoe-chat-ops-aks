@@ -53,22 +53,28 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     const triggerData = await triggerResponse.json();
     console.log('n8n response:', triggerData);
     
-    // Handle n8n response with runID/pipelineID for async processing
+    // Handle n8n response - support both sync and async modes
     const data = Array.isArray(triggerData) ? triggerData[0] : triggerData;
+    console.log('Parsed n8n data:', data);
     
-    // Check for runID to use async polling flow
-    const runID = data.runID || data.runId;
-    
-    if (runID) {
-      console.log('Async mode: waiting for completion with runID:', runID);
-      // Store pipelineID for reference if needed
-      const pipelineID = data.pipelineID || data.pipelineId;
-      return await waitForResult(runID, pipelineID);
+    // SYNC MODE: Direct answer in response (no polling needed)
+    if (data.answer && !data.runID && !data.runId) {
+      console.log('Sync mode: returning direct answer');
+      return { answer: data.answer, meta: { pipelineID: data.pipelineID } };
     }
     
-    // Direct answer (sync mode)
-    if (data.answer) {
-      return { answer: data.answer, meta: { runID: data.runID, pipelineID: data.pipelineID } };
+    // ASYNC MODE: runID present means we need to poll for completion
+    const runID = data.runID || data.runId;
+    if (runID) {
+      console.log('Async mode: waiting for completion with runID:', runID);
+      const pipelineID = data.pipelineID || data.pipelineId;
+      
+      // If answer is also present in async mode, show it as initial acknowledgment
+      if (data.answer) {
+        console.log('Initial acknowledgment:', data.answer);
+      }
+      
+      return await waitForResult(runID, pipelineID);
     }
     
     // 4. Other common response fields
