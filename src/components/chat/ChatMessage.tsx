@@ -44,6 +44,28 @@ export function ChatMessage({ message }: ChatMessageProps) {
               : 'bg-assistant text-assistant-foreground rounded-bl-md'
           )}
         >
+          {/* Show metadata for assistant messages */}
+          {!isUser && message.meta && (message.meta.runID || message.meta.pipelineID) && (
+            <div className="flex flex-wrap gap-2 mb-2 text-[10px] text-muted-foreground">
+              {message.meta.runID && (
+                <span className="bg-muted/50 px-2 py-0.5 rounded">Run: {message.meta.runID}</span>
+              )}
+              {message.meta.pipelineID && (
+                <span className="bg-muted/50 px-2 py-0.5 rounded">Pipeline: {message.meta.pipelineID}</span>
+              )}
+              {message.meta.status && (
+                <span className={cn(
+                  "px-2 py-0.5 rounded",
+                  message.meta.status.toLowerCase() === 'completed' ? 'bg-green-500/20 text-green-700' :
+                  message.meta.status.toLowerCase() === 'in_progress' ? 'bg-yellow-500/20 text-yellow-700' :
+                  'bg-muted/50'
+                )}>
+                  {message.meta.status}
+                </span>
+              )}
+            </div>
+          )}
+
           {message.content && (
             <p className="text-sm leading-relaxed whitespace-pre-wrap">
               {message.content}
