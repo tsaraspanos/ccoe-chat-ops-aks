@@ -126,7 +126,11 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     const normalizedTriggerStatus = String(n8nData.status ?? '').toLowerCase().trim();
 
     const directAnswer = extractAnswer(n8nData);
-    const hasRunId = runId !== undefined && runId !== null && String(runId).trim().length > 0;
+    
+    // Only consider it a valid workflow runId if it's not a placeholder value like "1"
+    // and the status indicates the workflow is actually in progress
+    const runIdStr = runId !== undefined && runId !== null ? String(runId).trim() : '';
+    const isValidWorkflowRun = runIdStr.length > 1 && normalizedTriggerStatus === 'in_progress';
 
     const errorStatuses = new Set(['error', 'failed', 'failure']);
 
@@ -135,12 +139,10 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       throw new Error(directAnswer || 'Workflow execution failed');
     }
 
-    // If we have a runId, return immediately and let the UI poll in the background.
-    // This prevents the chat from getting stuck on "Thinking" if the async completion is delayed
-    // or if the runID used for the completion differs.
-    if (hasRunId) {
-      console.log('RunID received from n8n (returning immediately):', {
-        runId,
+    // If we have a valid workflow run (real runId + in_progress status), return with meta
+    if (isValidWorkflowRun) {
+      console.log('Valid workflow started:', {
+        runId: runIdStr,
         pipelineId,
         status: n8nData.status,
         hasDirectAnswer: Boolean(directAnswer),
@@ -149,7 +151,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       return {
         answer: directAnswer || 'Working on it…',
         meta: {
-          runID: String(runId),
+          runID: runIdStr,
           pipelineID: pipelineId ? String(pipelineId) : undefined,
         },
       };
