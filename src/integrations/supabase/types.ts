@@ -14,7 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      webhook_job_updates: {
+        Row: {
+          answer: string | null
+          created_at: string
+          error: string | null
+          meta: Json | null
+          pipeline_id: string | null
+          run_id: string
+          session_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          answer?: string | null
+          created_at?: string
+          error?: string | null
+          meta?: Json | null
+          pipeline_id?: string | null
+          run_id: string
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string | null
+          created_at?: string
+          error?: string | null
+          meta?: Json | null
+          pipeline_id?: string | null
+          run_id?: string
+          session_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
