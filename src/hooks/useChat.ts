@@ -158,15 +158,15 @@ export function useChat() {
 
       const assistantMessageId = uuidv4();
       
-      // Track the runID if we got one AND the answer indicates we're still waiting
-      // (e.g., "Working on it…" placeholder means n8n will post completion later)
+      // Check if n8n returned a runID - this indicates a workflow has started
       const runID = response.meta?.runID;
-      const isWaitingForCompletion = runID && response.answer === 'Working on it…';
+      const pipelineID = response.meta?.pipelineID;
+      const hasWorkflowMeta = Boolean(runID);
       
-      // Only include meta if a workflow is actually in progress
-      const meta = isWaitingForCompletion ? {
-        runID: response.meta?.runID,
-        pipelineID: response.meta?.pipelineID,
+      // Only include meta if n8n actually sent runID (workflow in progress)
+      const meta = hasWorkflowMeta ? {
+        runID,
+        pipelineID,
         status: 'in_progress',
       } : undefined;
       
@@ -178,7 +178,8 @@ export function useChat() {
         meta,
       };
 
-      if (isWaitingForCompletion) {
+      // Track the runID if we have one - the webhook will update this message when complete
+      if (hasWorkflowMeta && runID) {
         console.log('Tracking pending runID:', runID, '-> messageId:', assistantMessageId);
         pendingRunIdsRef.current.set(runID, assistantMessageId);
       }
@@ -186,8 +187,8 @@ export function useChat() {
       setState(prev => ({
         ...prev,
         messages: [...prev.messages, assistantMessage],
-        // Only keep loading if we're actually waiting for a webhook completion
-        isLoading: Boolean(isWaitingForCompletion),
+        // Keep loading if we're waiting for a webhook completion
+        isLoading: hasWorkflowMeta,
       }));
 
     } catch (error) {
