@@ -107,23 +107,42 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     const n8nData: N8nResponse = await triggerResponse.json();
     console.log('n8n response:', n8nData);
 
-    // Case 1: n8n returned runID with status "in_progress" -> poll for final answer
+    // Case 1/2: n8n may return either a direct conversational answer OR a runID for async processing
     const runId = n8nData.runID ?? n8nData.runId;
     const pipelineId = n8nData.pipelineID ?? n8nData.pipelineId;
-    
-    if (runId && n8nData.status === 'in_progress') {
-      console.log('Workflow in progress, polling for runID:', runId);
+    const normalizedTriggerStatus = String(n8nData.status ?? '').toLowerCase().trim();
+
+    const directAnswer = extractAnswer(n8nData);
+    const hasRunId = runId !== undefined && runId !== null && String(runId).trim().length > 0;
+
+    const completedStatuses = new Set(['completed', 'complete', 'done', 'success']);
+    const errorStatuses = new Set(['error', 'failed', 'failure']);
+
+    // If n8n explicitly reports an error, surface it
+    if (errorStatuses.has(normalizedTriggerStatus)) {
+      throw new Error(directAnswer || 'Workflow execution failed');
+    }
+
+    // If we have a runId and no direct answer, always poll.
+    // (Some n8n flows omit status or use different wording than "in_progress".)
+    if (hasRunId && !directAnswer && !completedStatuses.has(normalizedTriggerStatus)) {
+      console.log('Workflow started, polling for runID:', runId, 'status:', n8nData.status);
       return await pollForResult(String(runId));
     }
 
-    // Case 2: n8n returned a direct answer - check common response keys
-    const directAnswer = extractAnswer(n8nData);
+    // If n8n claims it's completed but didn't include the answer, fetch it from the status endpoint.
+    if (hasRunId && !directAnswer && completedStatuses.has(normalizedTriggerStatus)) {
+      console.log('Workflow marked completed, fetching result for runID:', runId);
+      return await pollForResult(String(runId));
+    }
+
+    // Direct answer from n8n
     if (directAnswer) {
       console.log('Direct answer from n8n:', directAnswer);
       return {
         answer: directAnswer,
         meta: {
-          runID: runId ? String(runId) : undefined,
+          runID: hasRunId ? String(runId) : undefined,
           pipelineID: pipelineId ? String(pipelineId) : undefined,
         },
       };
@@ -150,29 +169,50 @@ async function pollForResult(runID: string): Promise<ChatResponse> {
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const response = await fetch(`${WEBHOOK_FUNCTION_URL}/status/${runID}`);
-      
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const functionHeaders: HeadersInit | undefined = anonKey
+        ? {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          }
+        : undefined;
+
+      const response = await fetch(`${WEBHOOK_FUNCTION_URL}/status/${runID}?t=${Date.now()}`, {
+        headers: functionHeaders,
+        cache: 'no-store',
+      });
+
       if (!response.ok) {
-        throw new Error(`Poll request failed: ${response.statusText}`);
+        throw new Error(`Poll request failed: ${response.status} ${response.statusText}`);
       }
 
       const data: StreamUpdate = await response.json();
       console.log(`Poll attempt ${attempt + 1}:`, data);
 
       // Normalize status to lowercase for comparison
-      const normalizedStatus = data.status?.toLowerCase();
+      const normalizedStatus = String(data.status ?? '').toLowerCase();
 
       if (normalizedStatus === 'completed' || normalizedStatus === 'complete' || normalizedStatus === 'done' || normalizedStatus === 'success') {
-        // Handle answer that might be a string or array
+        // Handle answer that might be a string, a string[], or a stringified JSON array
         let answerText = '';
         if (typeof data.answer === 'string') {
-          answerText = data.answer;
+          const trimmed = data.answer.trim();
+          if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+            try {
+              const parsed = JSON.parse(trimmed);
+              answerText = Array.isArray(parsed) ? parsed.join('\n') : data.answer;
+            } catch {
+              answerText = data.answer;
+            }
+          } else {
+            answerText = data.answer;
+          }
         } else if (Array.isArray(data.answer)) {
           answerText = data.answer.join('\n');
         } else if (data.answer) {
           answerText = JSON.stringify(data.answer, null, 2);
         }
-        
+
         console.log('Got completed response:', answerText);
         return {
           answer: answerText || 'Workflow completed (no answer provided)',
