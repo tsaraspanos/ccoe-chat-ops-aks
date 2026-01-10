@@ -156,9 +156,12 @@ export function useChat() {
         timestamp: new Date(),
       };
 
-      // Track the runID if we got one - the real-time subscription will update this message
+      // Track the runID if we got one AND the answer indicates we're still waiting
+      // (e.g., "Working on it…" placeholder means n8n will post completion later)
       const runID = response.meta?.runID;
-      if (runID) {
+      const isWaitingForCompletion = runID && response.answer === 'Working on it…';
+      
+      if (isWaitingForCompletion) {
         console.log('Tracking pending runID:', runID, '-> messageId:', assistantMessageId);
         pendingRunIdsRef.current.set(runID, assistantMessageId);
       }
@@ -166,8 +169,8 @@ export function useChat() {
       setState(prev => ({
         ...prev,
         messages: [...prev.messages, assistantMessage],
-        // Keep isLoading true if we're waiting for a runID completion
-        isLoading: Boolean(runID),
+        // Only keep loading if we're actually waiting for a webhook completion
+        isLoading: Boolean(isWaitingForCompletion),
       }));
 
     } catch (error) {
