@@ -25,8 +25,9 @@ Deno.serve(async (req) => {
   try {
     if (req.method === 'POST') {
       // Handle webhook update from n8n
+      // Expected payload: { runID, pipelineID, status, answer }
       const body = await req.json()
-      const { runID, runId, pipelineID, pipelineId, sessionId, status, answer, meta, error } = body
+      const { runID, runId, pipelineID, pipelineId, status, answer } = body
 
       // Support both camelCase and lowercase variations
       const normalizedRunID = runID || runId
@@ -53,12 +54,9 @@ Deno.serve(async (req) => {
         .from('webhook_job_updates')
         .upsert({
           run_id: normalizedRunID,
-          session_id: sessionId || null,
           pipeline_id: normalizedPipelineID || null,
           status,
           answer: answer || null,
-          meta: meta || null,
-          error: error || null,
         }, { onConflict: 'run_id' })
 
       if (dbError) {
