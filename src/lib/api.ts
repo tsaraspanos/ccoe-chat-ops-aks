@@ -107,7 +107,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     const n8nData: N8nResponse = await triggerResponse.json();
     console.log('n8n response:', n8nData);
 
-    // Case 1/2: n8n may return either a direct conversational answer OR a runID for async processing
+    // n8n may return either a direct conversational answer OR a runID for async processing
     const runId = n8nData.runID ?? n8nData.runId;
     const pipelineId = n8nData.pipelineID ?? n8nData.pipelineId;
     const normalizedTriggerStatus = String(n8nData.status ?? '').toLowerCase().trim();
@@ -115,7 +115,6 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     const directAnswer = extractAnswer(n8nData);
     const hasRunId = runId !== undefined && runId !== null && String(runId).trim().length > 0;
 
-    const completedStatuses = new Set(['completed', 'complete', 'done', 'success']);
     const errorStatuses = new Set(['error', 'failed', 'failure']);
 
     // If n8n explicitly reports an error, surface it
@@ -123,26 +122,25 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       throw new Error(directAnswer || 'Workflow execution failed');
     }
 
-    // If we have a runId and no direct answer, always poll.
-    // (Some n8n flows omit status or use different wording than "in_progress".)
-    if (hasRunId && !directAnswer && !completedStatuses.has(normalizedTriggerStatus)) {
-      console.log('Workflow started, polling for runID:', runId, 'status:', n8nData.status);
+    // IMPORTANT: If we have a runId, ALWAYS poll for the final answer.
+    // Many n8n flows include a "message" like "Started" alongside runId; treating that as final
+    // prevents the UI from ever showing the completion payload posted later.
+    if (hasRunId) {
+      console.log('RunID received from n8n. Polling for completion:', {
+        runId,
+        pipelineId,
+        status: n8nData.status,
+        hasDirectAnswer: Boolean(directAnswer),
+      });
       return await pollForResult(String(runId));
     }
 
-    // If n8n claims it's completed but didn't include the answer, fetch it from the status endpoint.
-    if (hasRunId && !directAnswer && completedStatuses.has(normalizedTriggerStatus)) {
-      console.log('Workflow marked completed, fetching result for runID:', runId);
-      return await pollForResult(String(runId));
-    }
-
-    // Direct answer from n8n
+    // Direct answer from n8n (no runId to track)
     if (directAnswer) {
       console.log('Direct answer from n8n:', directAnswer);
       return {
         answer: directAnswer,
         meta: {
-          runID: hasRunId ? String(runId) : undefined,
           pipelineID: pipelineId ? String(pipelineId) : undefined,
         },
       };
@@ -152,7 +150,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     console.warn('Unexpected n8n response shape:', n8nData);
     return {
       answer: JSON.stringify(n8nData, null, 2),
-      meta: n8nData as Record<string, unknown>,
+      meta: { raw: n8nData as Record<string, unknown> },
     };
   } catch (error) {
     console.error('Error sending message to n8n:', error);
