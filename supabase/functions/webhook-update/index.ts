@@ -1,5 +1,3 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -7,7 +5,14 @@ const corsHeaders = {
 
 // In-memory store for job updates (note: this resets on function cold start)
 // For production, consider using a database table instead
-const jobUpdates = new Map<string, { status: string; answer?: string; meta?: Record<string, unknown>; error?: string }>()
+const jobUpdates = new Map<string, { 
+  status: string; 
+  answer?: string; 
+  runID?: string;
+  pipelineID?: string;
+  meta?: Record<string, unknown>; 
+  error?: string 
+}>()
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -16,21 +21,24 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url)
-  const pathParts = url.pathname.split('/').filter(Boolean)
   
   // Expected paths:
-  // POST /webhook-update (or /webhook-update/update) - receive updates from n8n
-  // GET /webhook-update/status/:jobId - poll for status
+  // POST /webhook-update - receive updates from n8n with runID, pipelineID, answer
+  // GET /webhook-update/status/:runID - poll for status
   
   try {
     if (req.method === 'POST') {
       // Handle webhook update from n8n
       const body = await req.json()
-      const { jobId, sessionId, status, answer, meta, error } = body
+      const { runID, runId, pipelineID, pipelineId, status, answer, meta, error } = body
 
-      if (!jobId) {
+      // Support both camelCase and lowercase variations
+      const normalizedRunID = runID || runId
+      const normalizedPipelineID = pipelineID || pipelineId
+
+      if (!normalizedRunID) {
         return new Response(
-          JSON.stringify({ error: 'jobId is required' }),
+          JSON.stringify({ error: 'runID is required' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
@@ -42,30 +50,37 @@ Deno.serve(async (req) => {
         )
       }
 
-      console.log(`📥 Webhook update received: jobId=${jobId}, status=${status}`)
+      console.log(`📥 Webhook update received: runID=${normalizedRunID}, pipelineID=${normalizedPipelineID}, status=${status}`)
 
       // Store the update
-      const update = { status, answer, meta, error }
-      jobUpdates.set(jobId, update)
+      const update = { 
+        status, 
+        answer, 
+        runID: normalizedRunID,
+        pipelineID: normalizedPipelineID,
+        meta, 
+        error 
+      }
+      jobUpdates.set(normalizedRunID, update)
 
       // Clean up completed jobs after 5 minutes
       if (status === 'completed' || status === 'error') {
-        setTimeout(() => jobUpdates.delete(jobId), 300000)
+        setTimeout(() => jobUpdates.delete(normalizedRunID), 300000)
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: `Update received for job ${jobId}` }),
+        JSON.stringify({ success: true, message: `Update received for runID ${normalizedRunID}` }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (req.method === 'GET') {
-      // Handle status polling: /webhook-update/status/:jobId
+      // Handle status polling: /webhook-update/status/:runID
       const statusMatch = url.pathname.match(/\/status\/([^\/]+)/)
       
       if (statusMatch) {
-        const jobId = statusMatch[1]
-        const update = jobUpdates.get(jobId)
+        const runID = statusMatch[1]
+        const update = jobUpdates.get(runID)
 
         if (!update) {
           return new Response(

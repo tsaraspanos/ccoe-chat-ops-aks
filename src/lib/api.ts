@@ -11,6 +11,8 @@ console.log('API Config:', { WEBHOOK_FUNCTION_URL, N8N_WEBHOOK_URL });
 interface StreamUpdate {
   status: 'pending' | 'completed' | 'error';
   answer?: string;
+  runID?: string;
+  pipelineID?: string;
   meta?: Record<string, unknown>;
   error?: string;
 }
@@ -51,37 +53,22 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     const triggerData = await triggerResponse.json();
     console.log('n8n response:', triggerData);
     
-    // Handle different n8n response formats
-    // 1. Direct answer field
-    if (triggerData.answer) {
-      return { answer: triggerData.answer, meta: triggerData.meta || {} };
+    // Handle n8n response with runID/pipelineID for async processing
+    const data = Array.isArray(triggerData) ? triggerData[0] : triggerData;
+    
+    // Check for runID to use async polling flow
+    const runID = data.runID || data.runId;
+    
+    if (runID) {
+      console.log('Async mode: waiting for completion with runID:', runID);
+      // Store pipelineID for reference if needed
+      const pipelineID = data.pipelineID || data.pipelineId;
+      return await waitForResult(runID, pipelineID);
     }
     
-    // 2. Array response from n8n (common format)
-    if (Array.isArray(triggerData) && triggerData.length > 0) {
-      const firstItem = triggerData[0];
-      if (firstItem.answer) {
-        return { answer: firstItem.answer, meta: firstItem.meta || {} };
-      }
-      if (firstItem.output) {
-        return { answer: firstItem.output, meta: {} };
-      }
-      if (firstItem.message) {
-        return { answer: firstItem.message, meta: {} };
-      }
-      if (firstItem.text) {
-        return { answer: firstItem.text, meta: {} };
-      }
-      // Return stringified first item as fallback
-      return { answer: JSON.stringify(firstItem), meta: {} };
-    }
-
-    // 3. Check for jobId to use async SSE flow
-    const jobId = triggerData.jobId || triggerData.executionId || triggerData.id;
-    
-    if (jobId) {
-      // Async mode: wait for webhook callback
-      return await waitForResult(jobId);
+    // Direct answer (sync mode)
+    if (data.answer) {
+      return { answer: data.answer, meta: { runID: data.runID, pipelineID: data.pipelineID } };
     }
     
     // 4. Other common response fields
@@ -112,20 +99,21 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 /**
  * Wait for workflow result using polling (SSE not supported by edge functions)
  */
-async function waitForResult(jobId: string): Promise<ChatResponse> {
-  return await pollForResult(jobId);
+async function waitForResult(runID: string, pipelineID?: string): Promise<ChatResponse> {
+  console.log('Polling for result:', { runID, pipelineID });
+  return await pollForResult(runID);
 }
 
 /**
  * Poll for job result from Lovable Cloud edge function
  */
-async function pollForResult(jobId: string): Promise<ChatResponse> {
+async function pollForResult(runID: string): Promise<ChatResponse> {
   const maxAttempts = 300;
   const pollInterval = 2000;
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const response = await fetch(`${WEBHOOK_FUNCTION_URL}/status/${jobId}`);
+      const response = await fetch(`${WEBHOOK_FUNCTION_URL}/status/${runID}`);
       
       if (!response.ok) {
         throw new Error(`Poll request failed: ${response.statusText}`);
@@ -136,7 +124,7 @@ async function pollForResult(jobId: string): Promise<ChatResponse> {
       if (data.status === 'completed' && data.answer) {
         return {
           answer: data.answer,
-          meta: data.meta || {},
+          meta: { runID: data.runID, pipelineID: data.pipelineID, ...data.meta },
         };
       }
 

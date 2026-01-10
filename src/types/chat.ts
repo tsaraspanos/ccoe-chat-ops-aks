@@ -32,6 +32,8 @@ export interface ChatRequest {
 export interface ChatResponse {
   answer: string;
   meta?: {
+    runID?: string;
+    pipelineID?: string;
     toolCalls?: unknown[];
     raw?: Record<string, unknown>;
   };
