@@ -17,14 +17,28 @@ interface StreamUpdate {
   error?: string;
 }
 
+/**
+ * n8n response structure.
+ * - If n8n is still gathering info it may NOT include runID/pipelineID (just answer/message).
+ * - Once n8n triggers a workflow it returns runID, pipelineID, status: "in_progress".
+ */
 interface N8nResponse {
-  runID: string;
+  runID?: string;
+  pipelineID?: string;
+  status?: string;
+  answer?: string;
+  message?: string;
   [key: string]: unknown;
 }
 
 /**
- * Send chat message to n8n and poll for response.
- * n8n returns a runID which we use to poll for the final answer.
+ * Send chat message to n8n.
+ * 
+ * Flow:
+ * 1. UI sends message to n8n webhook.
+ * 2. n8n may respond with conversational replies (no runID) – return immediately.
+ * 3. When n8n triggers workflow it responds with runID + status "in_progress".
+ *    UI then polls the edge function until n8n posts the completed answer.
  */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
   const formData = new FormData();
@@ -47,7 +61,6 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   try {
     console.log('Sending message to n8n...');
     
-    // Send request to n8n - it should return a runID immediately
     const triggerResponse = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       body: formData,
@@ -57,19 +70,34 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       throw new Error(`Chat request failed: ${triggerResponse.statusText}`);
     }
 
-    // n8n should return JSON with runID
     const n8nData: N8nResponse = await triggerResponse.json();
-    const runID = n8nData.runID;
+    console.log('n8n response:', n8nData);
 
-    if (!runID) {
-      throw new Error('n8n did not return a runID. Make sure your n8n workflow returns { runID: "..." } in the response.');
+    // Case 1: n8n returned runID with status "in_progress" -> poll for final answer
+    if (n8nData.runID && n8nData.status === 'in_progress') {
+      console.log('Workflow in progress, polling for runID:', n8nData.runID);
+      return await pollForResult(n8nData.runID);
     }
 
-    console.log('n8n returned runID:', runID, '- starting to poll...');
-    
-    // Start polling for the result using the runID from n8n
-    return await pollForResult(runID);
-    
+    // Case 2: n8n returned a direct answer (conversational reply, no workflow triggered yet)
+    const directAnswer = n8nData.answer ?? n8nData.message;
+    if (directAnswer) {
+      console.log('Direct answer from n8n:', directAnswer);
+      return {
+        answer: directAnswer,
+        meta: {
+          runID: n8nData.runID,
+          pipelineID: n8nData.pipelineID,
+        },
+      };
+    }
+
+    // Fallback: unexpected response shape
+    console.warn('Unexpected n8n response shape:', n8nData);
+    return {
+      answer: 'Received response from workflow.',
+      meta: n8nData as Record<string, unknown>,
+    };
   } catch (error) {
     console.error('Error sending message to n8n:', error);
     throw error;
