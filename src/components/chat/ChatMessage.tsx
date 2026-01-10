@@ -44,16 +44,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
               : 'bg-assistant text-assistant-foreground rounded-bl-md'
           )}
         >
-          {/* Show metadata for assistant messages - hide N/A values */}
+          {/* Show metadata for assistant messages - hide N/A and none values */}
           {!isUser && message.meta && (
-            (message.meta.runID && message.meta.runID !== 'N/A') || 
-            (message.meta.pipelineID && message.meta.pipelineID !== 'N/A')
+            (message.meta.runID && message.meta.runID !== 'N/A' && message.meta.runID.toLowerCase() !== 'none') || 
+            (message.meta.pipelineID && message.meta.pipelineID !== 'N/A' && message.meta.pipelineID.toLowerCase() !== 'none')
           ) && (
             <div className="flex flex-wrap gap-2 mb-2 text-[10px] text-muted-foreground">
-              {message.meta.runID && message.meta.runID !== 'N/A' && (
+              {message.meta.runID && message.meta.runID !== 'N/A' && message.meta.runID.toLowerCase() !== 'none' && (
                 <span className="bg-muted/50 px-2 py-0.5 rounded">Run: {message.meta.runID}</span>
               )}
-              {message.meta.pipelineID && message.meta.pipelineID !== 'N/A' && (
+              {message.meta.pipelineID && message.meta.pipelineID !== 'N/A' && message.meta.pipelineID.toLowerCase() !== 'none' && (
                 <span className="bg-muted/50 px-2 py-0.5 rounded">Pipeline: {message.meta.pipelineID}</span>
               )}
               {message.meta.status && (
