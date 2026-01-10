@@ -65,6 +65,13 @@ export function useChat() {
     
     const answerText = normalizeAnswer(update.answer);
     
+    // Build meta object from webhook update
+    const meta = {
+      runID: update.run_id,
+      pipelineID: update.pipeline_id || undefined,
+      status: update.status,
+    };
+    
     if (assistantMessageId) {
       // Update existing assistant message in-place
       console.log('Updating existing message:', assistantMessageId);
@@ -75,7 +82,7 @@ export function useChat() {
         isLoading: false,
         messages: prev.messages.map((m) =>
           m.id === assistantMessageId
-            ? { ...m, content: answerText || 'Workflow completed', timestamp: new Date() }
+            ? { ...m, content: answerText || 'Workflow completed', timestamp: new Date(), meta }
             : m
         ),
       }));
@@ -93,6 +100,7 @@ export function useChat() {
             role: 'assistant',
             content: answerText || 'Workflow completed',
             timestamp: new Date(),
+            meta,
           },
         ],
       }));
@@ -154,6 +162,11 @@ export function useChat() {
         role: 'assistant',
         content: response.answer,
         timestamp: new Date(),
+        meta: response.meta ? {
+          runID: response.meta.runID,
+          pipelineID: response.meta.pipelineID,
+          status: response.meta.runID ? 'in_progress' : undefined,
+        } : undefined,
       };
 
       // Track the runID if we got one AND the answer indicates we're still waiting

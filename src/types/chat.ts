@@ -5,6 +5,11 @@ export interface ChatMessage {
   timestamp: Date;
   attachments?: FileAttachment[];
   voiceAttachment?: VoiceAttachment;
+  meta?: {
+    runID?: string;
+    pipelineID?: string;
+    status?: string;
+  };
 }
 
 export interface FileAttachment {
