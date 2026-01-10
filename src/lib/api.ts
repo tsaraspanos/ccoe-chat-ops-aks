@@ -233,6 +233,60 @@ async function pollForResult(runID: string): Promise<ChatResponse> {
   throw new Error('Request timed out waiting for response');
 }
 
+export async function waitForNextCompletionAfter(
+  sinceMs: number,
+  excludeRunIds: string[] = [],
+): Promise<ChatResponse | null> {
+  const maxAttempts = 300; // 10 minutes max
+  const pollInterval = 2000;
+  const excluded = new Set(excludeRunIds);
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const functionHeaders: HeadersInit | undefined = anonKey
+        ? {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          }
+        : undefined;
+
+      const jobsResponse = await fetch(`${WEBHOOK_FUNCTION_URL}?t=${Date.now()}`, {
+        headers: functionHeaders,
+        cache: 'no-store',
+      });
+
+      if (!jobsResponse.ok) {
+        throw new Error(`Jobs request failed: ${jobsResponse.status} ${jobsResponse.statusText}`);
+      }
+
+      const body = await jobsResponse.json();
+      const jobs = Array.isArray(body?.jobs) ? body.jobs : [];
+
+      const candidate = jobs
+        .filter((j: any) => j?.run_id && !excluded.has(String(j.run_id)))
+        .map((j: any) => {
+          const ts = Date.parse(String(j.updated_at ?? j.created_at ?? ''));
+          return { run_id: String(j.run_id), ts };
+        })
+        .filter((j: any) => Number.isFinite(j.ts) && j.ts >= sinceMs)
+        .sort((a: any, b: any) => b.ts - a.ts)[0];
+
+      if (candidate?.run_id) {
+        return await pollForResult(candidate.run_id);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    } catch (err) {
+      console.warn('waitForNextCompletionAfter attempt failed:', err);
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    }
+  }
+
+  return null;
+}
+
 export async function checkHealth(): Promise<{ status: string }> {
   return { status: 'ok' };
 }
+

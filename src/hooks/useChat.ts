@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMessage, ChatState, ChatRequest } from '@/types/chat';
-import { sendChatMessage } from '@/lib/api';
+import { sendChatMessage, waitForNextCompletionAfter } from '@/lib/api';
 import { v4 as uuidv4 } from 'uuid';
 
 const SESSION_KEY = 'chat-session-id';
@@ -15,12 +15,21 @@ function getOrCreateSessionId(): string {
 }
 
 export function useChat() {
+  const isMountedRef = useRef(true);
+  const seenRunIdsRef = useRef<Set<string>>(new Set());
+
   const [state, setState] = useState<ChatState>({
     messages: [],
     isLoading: false,
     error: null,
     sessionId: '',
   });
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     setState(prev => ({ ...prev, sessionId: getOrCreateSessionId() }));
@@ -59,6 +68,8 @@ export function useChat() {
     }));
 
     try {
+      const sentAt = Date.now();
+
       const request: ChatRequest = {
         sessionId: state.sessionId,
         message: content.trim() || undefined,
@@ -80,6 +91,34 @@ export function useChat() {
         messages: [...prev.messages, assistantMessage],
         isLoading: false,
       }));
+
+      // If the trigger response didn't include a runID, n8n may still post the final answer later.
+      // In that case, watch for the next completed job in the backend and append it.
+      if (!response.meta?.runID) {
+        void waitForNextCompletionAfter(sentAt, Array.from(seenRunIdsRef.current))
+          .then((finalResponse) => {
+            if (!isMountedRef.current || !finalResponse) return;
+
+            const finalRunId = finalResponse.meta?.runID;
+            if (finalRunId) seenRunIdsRef.current.add(finalRunId);
+
+            setState((prev) => ({
+              ...prev,
+              messages: [
+                ...prev.messages,
+                {
+                  id: uuidv4(),
+                  role: 'assistant',
+                  content: finalResponse.answer,
+                  timestamp: new Date(),
+                },
+              ],
+            }));
+          })
+          .catch((err) => {
+            console.warn('Background completion watcher failed:', err);
+          });
+      }
     } catch (error) {
       setState(prev => ({
         ...prev,
