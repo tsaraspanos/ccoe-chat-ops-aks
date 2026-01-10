@@ -10,6 +10,12 @@ interface ChatMessageProps {
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
 
+  const isValidMetaValue = (value?: string | null) => {
+    if (!value) return false;
+    const v = value.trim().toLowerCase();
+    return v !== 'n/a' && v !== 'na' && v !== 'none' && v !== 'null';
+  };
+
   return (
     <div
       className={cn(
@@ -44,16 +50,15 @@ export function ChatMessage({ message }: ChatMessageProps) {
               : 'bg-assistant text-assistant-foreground rounded-bl-md'
           )}
         >
-          {/* Show metadata for assistant messages - hide N/A and none values */}
+          {/* Show metadata for assistant messages - hide invalid values */}
           {!isUser && message.meta && (
-            (message.meta.runID && message.meta.runID !== 'N/A' && message.meta.runID.toLowerCase() !== 'none') || 
-            (message.meta.pipelineID && message.meta.pipelineID !== 'N/A' && message.meta.pipelineID.toLowerCase() !== 'none')
+            isValidMetaValue(message.meta.runID) || isValidMetaValue(message.meta.pipelineID)
           ) && (
             <div className="flex flex-wrap gap-2 mb-2 text-[10px] text-muted-foreground">
-              {message.meta.runID && message.meta.runID !== 'N/A' && message.meta.runID.toLowerCase() !== 'none' && (
+              {isValidMetaValue(message.meta.runID) && (
                 <span className="bg-muted/50 px-2 py-0.5 rounded">Run: {message.meta.runID}</span>
               )}
-              {message.meta.pipelineID && message.meta.pipelineID !== 'N/A' && message.meta.pipelineID.toLowerCase() !== 'none' && (
+              {isValidMetaValue(message.meta.pipelineID) && (
                 <span className="bg-muted/50 px-2 py-0.5 rounded">Pipeline: {message.meta.pipelineID}</span>
               )}
               {message.meta.status && (
