@@ -157,23 +157,27 @@ export function useChat() {
       const response = await sendChatMessage(request);
 
       const assistantMessageId = uuidv4();
-      const assistantMessage: ChatMessage = {
-        id: assistantMessageId,
-        role: 'assistant',
-        content: response.answer,
-        timestamp: new Date(),
-        meta: response.meta ? {
-          runID: response.meta.runID,
-          pipelineID: response.meta.pipelineID,
-          status: response.meta.runID ? 'in_progress' : undefined,
-        } : undefined,
-      };
-
+      
       // Track the runID if we got one AND the answer indicates we're still waiting
       // (e.g., "Working on it…" placeholder means n8n will post completion later)
       const runID = response.meta?.runID;
       const isWaitingForCompletion = runID && response.answer === 'Working on it…';
       
+      // Only include meta if a workflow is actually in progress
+      const meta = isWaitingForCompletion ? {
+        runID: response.meta?.runID,
+        pipelineID: response.meta?.pipelineID,
+        status: 'in_progress',
+      } : undefined;
+      
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: response.answer,
+        timestamp: new Date(),
+        meta,
+      };
+
       if (isWaitingForCompletion) {
         console.log('Tracking pending runID:', runID, '-> messageId:', assistantMessageId);
         pendingRunIdsRef.current.set(runID, assistantMessageId);
