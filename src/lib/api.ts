@@ -1,5 +1,4 @@
 import { ChatRequest, ChatResponse } from '@/types/chat';
-import { v4 as uuidv4 } from 'uuid';
 
 const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger';
 
@@ -18,18 +17,18 @@ interface StreamUpdate {
   error?: string;
 }
 
+interface N8nResponse {
+  runID: string;
+  [key: string]: unknown;
+}
+
 /**
  * Send chat message to n8n and poll for response.
- * We generate a unique runID client-side and pass it to n8n.
- * n8n should use this runID when posting the completion back.
+ * n8n returns a runID which we use to poll for the final answer.
  */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
-  // Generate a unique ID for this request - n8n should use this as runID when posting back
-  const runID = uuidv4();
-  
   const formData = new FormData();
   formData.append('sessionId', request.sessionId);
-  formData.append('runID', runID); // Pass runID to n8n so it can use it in the callback
 
   if (request.message) {
     formData.append('message', request.message);
@@ -46,9 +45,9 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   }
 
   try {
-    console.log('Sending message to n8n with runID:', runID);
+    console.log('Sending message to n8n...');
     
-    // Fire the request to n8n (fire and forget - we don't wait for n8n response)
+    // Send request to n8n - it should return a runID immediately
     const triggerResponse = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       body: formData,
@@ -58,9 +57,17 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       throw new Error(`Chat request failed: ${triggerResponse.statusText}`);
     }
 
-    console.log('n8n webhook triggered, starting to poll for runID:', runID);
+    // n8n should return JSON with runID
+    const n8nData: N8nResponse = await triggerResponse.json();
+    const runID = n8nData.runID;
+
+    if (!runID) {
+      throw new Error('n8n did not return a runID. Make sure your n8n workflow returns { runID: "..." } in the response.');
+    }
+
+    console.log('n8n returned runID:', runID, '- starting to poll...');
     
-    // Start polling for the result using the runID we generated
+    // Start polling for the result using the runID from n8n
     return await pollForResult(runID);
     
   } catch (error) {
