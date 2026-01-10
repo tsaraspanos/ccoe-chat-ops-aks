@@ -32,6 +32,38 @@ interface N8nResponse {
 }
 
 /**
+ * Extract answer from n8n response - handles various common field names
+ */
+function extractAnswer(data: N8nResponse): string | undefined {
+  // Common field names for text responses
+  const answerKeys = ['answer', 'message', 'text', 'output', 'response', 'content', 'result'];
+  
+  for (const key of answerKeys) {
+    const value = data[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+  
+  // Check if data itself is a string (some workflows return plain text)
+  if (typeof data === 'string') {
+    return data;
+  }
+  
+  // Check for nested data.data.answer pattern
+  if (data.data && typeof data.data === 'object') {
+    for (const key of answerKeys) {
+      const value = (data.data as Record<string, unknown>)[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value;
+      }
+    }
+  }
+  
+  return undefined;
+}
+
+/**
  * Send chat message to n8n.
  * 
  * Flow:
@@ -79,8 +111,8 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       return await pollForResult(n8nData.runID);
     }
 
-    // Case 2: n8n returned a direct answer (conversational reply, no workflow triggered yet)
-    const directAnswer = n8nData.answer ?? n8nData.message;
+    // Case 2: n8n returned a direct answer - check common response keys
+    const directAnswer = extractAnswer(n8nData);
     if (directAnswer) {
       console.log('Direct answer from n8n:', directAnswer);
       return {
@@ -92,10 +124,10 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       };
     }
 
-    // Fallback: unexpected response shape
+    // Fallback: show stringified response so user can see what n8n returned
     console.warn('Unexpected n8n response shape:', n8nData);
     return {
-      answer: 'Received response from workflow.',
+      answer: JSON.stringify(n8nData, null, 2),
       meta: n8nData as Record<string, unknown>,
     };
   } catch (error) {
