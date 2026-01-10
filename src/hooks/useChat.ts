@@ -72,39 +72,29 @@ export function useChat() {
       status: update.status,
     };
     
+    // Always append completion as a new message (keep the in-progress message)
     if (assistantMessageId) {
-      // Update existing assistant message in-place
-      console.log('Updating existing message:', assistantMessageId);
+      console.log('Workflow completed, keeping in-progress message and adding completion for:', assistantMessageId);
       pendingRunIdsRef.current.delete(runId);
-      
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        messages: prev.messages.map((m) =>
-          m.id === assistantMessageId
-            ? { ...m, content: answerText || 'Workflow completed', timestamp: new Date(), meta }
-            : m
-        ),
-      }));
-    } else {
-      // New completion - append as new message
-      console.log('Appending new message for runId:', runId);
-      
-      setState((prev) => ({
-        ...prev,
-        isLoading: false,
-        messages: [
-          ...prev.messages,
-          {
-            id: uuidv4(),
-            role: 'assistant',
-            content: answerText || 'Workflow completed',
-            timestamp: new Date(),
-            meta,
-          },
-        ],
-      }));
     }
+    
+    // Append the completion as a new message
+    console.log('Appending completion message for runId:', runId);
+    
+    setState((prev) => ({
+      ...prev,
+      isLoading: false,
+      messages: [
+        ...prev.messages,
+        {
+          id: uuidv4(),
+          role: 'assistant',
+          content: answerText || 'Workflow completed',
+          timestamp: new Date(),
+          meta,
+        },
+      ],
+    }));
   }, []);
 
   // Subscribe to real-time webhook updates
