@@ -130,7 +130,8 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     // Only consider it a valid workflow runId if it's not a placeholder value like "1"
     // and the status indicates the workflow is actually in progress
     const runIdStr = runId !== undefined && runId !== null ? String(runId).trim() : '';
-    const isValidWorkflowRun = runIdStr.length > 1 && normalizedTriggerStatus === 'in_progress';
+    const normalizedStatus = normalizedTriggerStatus.replace(/[\s_-]/g, ''); // "In progress" -> "inprogress"
+    const isValidWorkflowRun = runIdStr.length > 1 && normalizedStatus === 'inprogress';
 
     const errorStatuses = new Set(['error', 'failed', 'failure']);
 
