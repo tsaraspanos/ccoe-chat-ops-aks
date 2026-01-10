@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMessage, ChatState, ChatRequest } from '@/types/chat';
-import { sendChatMessage, waitForNextCompletionAfter } from '@/lib/api';
+import { sendChatMessage, pollForRunResult, waitForNextCompletionAfter } from '@/lib/api';
 import { v4 as uuidv4 } from 'uuid';
 
 const SESSION_KEY = 'chat-session-id';
@@ -79,8 +79,9 @@ export function useChat() {
 
       const response = await sendChatMessage(request);
 
+      const assistantMessageId = uuidv4();
       const assistantMessage: ChatMessage = {
-        id: uuidv4(),
+        id: assistantMessageId,
         role: 'assistant',
         content: response.answer,
         timestamp: new Date(),
@@ -92,33 +93,57 @@ export function useChat() {
         isLoading: false,
       }));
 
-      // If the trigger response didn't include a runID, n8n may still post the final answer later.
-      // In that case, watch for the next completed job in the backend and append it.
-      if (!response.meta?.runID) {
-        void waitForNextCompletionAfter(sentAt, Array.from(seenRunIdsRef.current))
-          .then((finalResponse) => {
-            if (!isMountedRef.current || !finalResponse) return;
+      const runID = response.meta?.runID;
 
-            const finalRunId = finalResponse.meta?.runID;
-            if (finalRunId) seenRunIdsRef.current.add(finalRunId);
+      // If we got a runID, poll for its completion in the background and update the assistant message in-place.
+      if (runID) {
+        seenRunIdsRef.current.add(runID);
+
+        void pollForRunResult(runID)
+          .then((finalResponse) => {
+            if (!isMountedRef.current) return;
 
             setState((prev) => ({
               ...prev,
-              messages: [
-                ...prev.messages,
-                {
-                  id: uuidv4(),
-                  role: 'assistant',
-                  content: finalResponse.answer,
-                  timestamp: new Date(),
-                },
-              ],
+              messages: prev.messages.map((m) =>
+                m.id === assistantMessageId
+                  ? { ...m, content: finalResponse.answer, timestamp: new Date() }
+                  : m
+              ),
             }));
           })
           .catch((err) => {
-            console.warn('Background completion watcher failed:', err);
+            console.warn('Run completion polling failed:', err);
           });
+
+        return;
       }
+
+      // If the trigger response didn't include a runID, n8n may still post the final answer later.
+      // In that case, watch for the next completed job in the backend and append it.
+      void waitForNextCompletionAfter(sentAt, Array.from(seenRunIdsRef.current))
+        .then((finalResponse) => {
+          if (!isMountedRef.current || !finalResponse) return;
+
+          const finalRunId = finalResponse.meta?.runID;
+          if (finalRunId) seenRunIdsRef.current.add(finalRunId);
+
+          setState((prev) => ({
+            ...prev,
+            messages: [
+              ...prev.messages,
+              {
+                id: uuidv4(),
+                role: 'assistant',
+                content: finalResponse.answer,
+                timestamp: new Date(),
+              },
+            ],
+          }));
+        })
+        .catch((err) => {
+          console.warn('Background completion watcher failed:', err);
+        });
     } catch (error) {
       setState(prev => ({
         ...prev,

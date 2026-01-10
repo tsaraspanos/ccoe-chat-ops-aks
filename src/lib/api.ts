@@ -94,11 +94,24 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 
   try {
     console.log('Sending message to n8n...');
-    
-    const triggerResponse = await fetch(N8N_WEBHOOK_URL, {
-      method: 'POST',
-      body: formData,
-    });
+
+    // Prevent the UI from being stuck on "Thinking" forever if n8n doesn't respond.
+    // If this times out, we return a placeholder and let the background completion watcher
+    // (or runID polling, when available) pick up the final result.
+    const controller = new AbortController();
+    const timeoutMs = 20000;
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+    let triggerResponse: Response;
+    try {
+      triggerResponse = await fetch(N8N_WEBHOOK_URL, {
+        method: 'POST',
+        body: formData,
+        signal: controller.signal,
+      });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
 
     if (!triggerResponse.ok) {
       throw new Error(`Chat request failed: ${triggerResponse.statusText}`);
@@ -122,17 +135,24 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       throw new Error(directAnswer || 'Workflow execution failed');
     }
 
-    // IMPORTANT: If we have a runId, ALWAYS poll for the final answer.
-    // Many n8n flows include a "message" like "Started" alongside runId; treating that as final
-    // prevents the UI from ever showing the completion payload posted later.
+    // If we have a runId, return immediately and let the UI poll in the background.
+    // This prevents the chat from getting stuck on "Thinking" if the async completion is delayed
+    // or if the runID used for the completion differs.
     if (hasRunId) {
-      console.log('RunID received from n8n. Polling for completion:', {
+      console.log('RunID received from n8n (returning immediately):', {
         runId,
         pipelineId,
         status: n8nData.status,
         hasDirectAnswer: Boolean(directAnswer),
       });
-      return await pollForResult(String(runId));
+
+      return {
+        answer: directAnswer || 'Working on it…',
+        meta: {
+          runID: String(runId),
+          pipelineID: pipelineId ? String(pipelineId) : undefined,
+        },
+      };
     }
 
     // Direct answer from n8n (no runId to track)
@@ -231,6 +251,10 @@ async function pollForResult(runID: string): Promise<ChatResponse> {
   }
 
   throw new Error('Request timed out waiting for response');
+}
+
+export async function pollForRunResult(runID: string): Promise<ChatResponse> {
+  return pollForResult(runID);
 }
 
 export async function waitForNextCompletionAfter(
