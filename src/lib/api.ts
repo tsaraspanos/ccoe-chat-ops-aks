@@ -1,4 +1,5 @@
 import { ChatRequest, ChatResponse } from '@/types/chat';
+import { v4 as uuidv4 } from 'uuid';
 
 const N8N_WEBHOOK_URL = 'https://tsaraspanos.app.n8n.cloud/webhook/chat-ui-trigger';
 
@@ -18,12 +19,17 @@ interface StreamUpdate {
 }
 
 /**
- * Send chat message and listen for real-time updates via SSE.
- * n8n should return a jobId immediately, then push updates to the webhook.
+ * Send chat message to n8n and poll for response.
+ * We generate a unique runID client-side and pass it to n8n.
+ * n8n should use this runID when posting the completion back.
  */
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
+  // Generate a unique ID for this request - n8n should use this as runID when posting back
+  const runID = uuidv4();
+  
   const formData = new FormData();
   formData.append('sessionId', request.sessionId);
+  formData.append('runID', runID); // Pass runID to n8n so it can use it in the callback
 
   if (request.message) {
     formData.append('message', request.message);
@@ -40,7 +46,9 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   }
 
   try {
-    // Step 1: Send the message and get a jobId
+    console.log('Sending message to n8n with runID:', runID);
+    
+    // Fire the request to n8n (fire and forget - we don't wait for n8n response)
     const triggerResponse = await fetch(N8N_WEBHOOK_URL, {
       method: 'POST',
       body: formData,
@@ -50,52 +58,11 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       throw new Error(`Chat request failed: ${triggerResponse.statusText}`);
     }
 
-    const triggerData = await triggerResponse.json();
-    console.log('n8n response:', triggerData);
+    console.log('n8n webhook triggered, starting to poll for runID:', runID);
     
-    // Handle n8n response - support both sync and async modes
-    const data = Array.isArray(triggerData) ? triggerData[0] : triggerData;
-    console.log('Parsed n8n data:', data);
+    // Start polling for the result using the runID we generated
+    return await pollForResult(runID);
     
-    // SYNC MODE: Direct answer in response (no polling needed)
-    if (data.answer && !data.runID && !data.runId) {
-      console.log('Sync mode: returning direct answer');
-      return { answer: data.answer, meta: { pipelineID: data.pipelineID } };
-    }
-    
-    // ASYNC MODE: runID present means we need to poll for completion
-    const runID = data.runID || data.runId;
-    if (runID) {
-      console.log('Async mode: waiting for completion with runID:', runID);
-      const pipelineID = data.pipelineID || data.pipelineId;
-      
-      // If answer is also present in async mode, show it as initial acknowledgment
-      if (data.answer) {
-        console.log('Initial acknowledgment:', data.answer);
-      }
-      
-      return await waitForResult(runID, pipelineID);
-    }
-    
-    // 4. Other common response fields
-    if (triggerData.message) {
-      return { answer: triggerData.message, meta: triggerData.meta || {} };
-    }
-    if (triggerData.text) {
-      return { answer: triggerData.text, meta: triggerData.meta || {} };
-    }
-    if (triggerData.response) {
-      return { answer: triggerData.response, meta: triggerData.meta || {} };
-    }
-    if (triggerData.output) {
-      return { answer: triggerData.output, meta: triggerData.meta || {} };
-    }
-    
-    // 5. Last resort: stringify the entire response
-    return { 
-      answer: JSON.stringify(triggerData, null, 2), 
-      meta: {} 
-    };
   } catch (error) {
     console.error('Error sending message to n8n:', error);
     throw error;
@@ -103,19 +70,11 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 }
 
 /**
- * Wait for workflow result using polling (SSE not supported by edge functions)
- */
-async function waitForResult(runID: string, pipelineID?: string): Promise<ChatResponse> {
-  console.log('Polling for result:', { runID, pipelineID });
-  return await pollForResult(runID);
-}
-
-/**
  * Poll for job result from Lovable Cloud edge function
  */
 async function pollForResult(runID: string): Promise<ChatResponse> {
-  const maxAttempts = 300;
-  const pollInterval = 2000;
+  const maxAttempts = 300; // 10 minutes max
+  const pollInterval = 2000; // 2 seconds
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -126,8 +85,10 @@ async function pollForResult(runID: string): Promise<ChatResponse> {
       }
 
       const data: StreamUpdate = await response.json();
+      console.log(`Poll attempt ${attempt + 1}:`, data);
 
       if (data.status === 'completed' && data.answer) {
+        console.log('Got completed response:', data.answer);
         return {
           answer: data.answer,
           meta: { runID: data.runID, pipelineID: data.pipelineID, ...data.meta },
@@ -138,6 +99,7 @@ async function pollForResult(runID: string): Promise<ChatResponse> {
         throw new Error(data.error || 'Workflow execution failed');
       }
 
+      // Still pending, wait and try again
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     } catch (error) {
       console.warn(`Poll attempt ${attempt + 1} failed:`, error);
