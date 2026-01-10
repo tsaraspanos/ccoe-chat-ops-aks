@@ -9,8 +9,8 @@ const WEBHOOK_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/webhook-update`;
 console.log('API Config:', { WEBHOOK_FUNCTION_URL, N8N_WEBHOOK_URL });
 
 interface StreamUpdate {
-  status: 'pending' | 'completed' | 'error';
-  answer?: string;
+  status: 'pending' | 'completed' | 'error' | string;
+  answer?: string | string[];
   runID?: string;
   pipelineID?: string;
   meta?: Record<string, unknown>;
@@ -154,15 +154,28 @@ async function pollForResult(runID: string): Promise<ChatResponse> {
       const data: StreamUpdate = await response.json();
       console.log(`Poll attempt ${attempt + 1}:`, data);
 
-      if (data.status === 'completed' && data.answer) {
-        console.log('Got completed response:', data.answer);
+      // Normalize status to lowercase for comparison
+      const normalizedStatus = data.status?.toLowerCase();
+
+      if (normalizedStatus === 'completed' || normalizedStatus === 'complete' || normalizedStatus === 'done' || normalizedStatus === 'success') {
+        // Handle answer that might be a string or array
+        let answerText = '';
+        if (typeof data.answer === 'string') {
+          answerText = data.answer;
+        } else if (Array.isArray(data.answer)) {
+          answerText = data.answer.join('\n');
+        } else if (data.answer) {
+          answerText = JSON.stringify(data.answer, null, 2);
+        }
+        
+        console.log('Got completed response:', answerText);
         return {
-          answer: data.answer,
+          answer: answerText || 'Workflow completed (no answer provided)',
           meta: { runID: data.runID, pipelineID: data.pipelineID, ...data.meta },
         };
       }
 
-      if (data.status === 'error') {
+      if (normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'failure') {
         throw new Error(data.error || 'Workflow execution failed');
       }
 
