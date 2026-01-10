@@ -23,8 +23,10 @@ interface StreamUpdate {
  * - Once n8n triggers a workflow it returns runID, pipelineID, status: "in_progress".
  */
 interface N8nResponse {
-  runID?: string;
-  pipelineID?: string;
+  runID?: string | number;
+  runId?: string | number;
+  pipelineID?: string | number;
+  pipelineId?: string | number;
   status?: string;
   answer?: string;
   message?: string;
