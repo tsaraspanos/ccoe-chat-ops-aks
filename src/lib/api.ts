@@ -108,9 +108,12 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     console.log('n8n response:', n8nData);
 
     // Case 1: n8n returned runID with status "in_progress" -> poll for final answer
-    if (n8nData.runID && n8nData.status === 'in_progress') {
-      console.log('Workflow in progress, polling for runID:', n8nData.runID);
-      return await pollForResult(n8nData.runID);
+    const runId = n8nData.runID ?? n8nData.runId;
+    const pipelineId = n8nData.pipelineID ?? n8nData.pipelineId;
+    
+    if (runId && n8nData.status === 'in_progress') {
+      console.log('Workflow in progress, polling for runID:', runId);
+      return await pollForResult(String(runId));
     }
 
     // Case 2: n8n returned a direct answer - check common response keys
@@ -120,8 +123,8 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       return {
         answer: directAnswer,
         meta: {
-          runID: n8nData.runID,
-          pipelineID: n8nData.pipelineID,
+          runID: runId ? String(runId) : undefined,
+          pipelineID: pipelineId ? String(pipelineId) : undefined,
         },
       };
     }
