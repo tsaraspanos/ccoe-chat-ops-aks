@@ -187,8 +187,9 @@ export function useChat() {
       setState(prev => ({
         ...prev,
         messages: [...prev.messages, assistantMessage],
-        // Keep loading if we're waiting for a webhook completion
-        isLoading: hasWorkflowMeta,
+        // Only block input while waiting for the immediate n8n response.
+        // Workflows can keep running in the background; completion comes via webhook.
+        isLoading: false,
       }));
 
     } catch (error) {
