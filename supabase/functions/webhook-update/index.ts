@@ -1,18 +1,14 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// In-memory store for job updates (note: this resets on function cold start)
-// For production, consider using a database table instead
-const jobUpdates = new Map<string, { 
-  status: string; 
-  answer?: string; 
-  runID?: string;
-  pipelineID?: string;
-  meta?: Record<string, unknown>; 
-  error?: string 
-}>()
+// Create Supabase client with service role for database access
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey)
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -30,7 +26,7 @@ Deno.serve(async (req) => {
     if (req.method === 'POST') {
       // Handle webhook update from n8n
       const body = await req.json()
-      const { runID, runId, pipelineID, pipelineId, status, answer, meta, error } = body
+      const { runID, runId, pipelineID, pipelineId, sessionId, status, answer, meta, error } = body
 
       // Support both camelCase and lowercase variations
       const normalizedRunID = runID || runId
@@ -52,21 +48,28 @@ Deno.serve(async (req) => {
 
       console.log(`📥 Webhook update received: runID=${normalizedRunID}, pipelineID=${normalizedPipelineID}, status=${status}`)
 
-      // Store the update
-      const update = { 
-        status, 
-        answer, 
-        runID: normalizedRunID,
-        pipelineID: normalizedPipelineID,
-        meta, 
-        error 
-      }
-      jobUpdates.set(normalizedRunID, update)
+      // Upsert the update to the database
+      const { error: dbError } = await supabase
+        .from('webhook_job_updates')
+        .upsert({
+          run_id: normalizedRunID,
+          session_id: sessionId || null,
+          pipeline_id: normalizedPipelineID || null,
+          status,
+          answer: answer || null,
+          meta: meta || null,
+          error: error || null,
+        }, { onConflict: 'run_id' })
 
-      // Clean up completed jobs after 5 minutes
-      if (status === 'completed' || status === 'error') {
-        setTimeout(() => jobUpdates.delete(normalizedRunID), 300000)
+      if (dbError) {
+        console.error('Database error:', dbError)
+        return new Response(
+          JSON.stringify({ error: 'Failed to store update', details: dbError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
+
+      console.log(`✅ Update stored for runID ${normalizedRunID}`)
 
       return new Response(
         JSON.stringify({ success: true, message: `Update received for runID ${normalizedRunID}` }),
@@ -80,9 +83,23 @@ Deno.serve(async (req) => {
       
       if (statusMatch) {
         const runID = statusMatch[1]
-        const update = jobUpdates.get(runID)
+        
+        // Query the database for the job status
+        const { data, error: dbError } = await supabase
+          .from('webhook_job_updates')
+          .select('*')
+          .eq('run_id', runID)
+          .single()
 
-        if (!update) {
+        if (dbError && dbError.code !== 'PGRST116') { // PGRST116 = not found
+          console.error('Database error:', dbError)
+          return new Response(
+            JSON.stringify({ error: 'Database query failed', details: dbError.message }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if (!data) {
           return new Response(
             JSON.stringify({ status: 'pending' }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -90,15 +107,27 @@ Deno.serve(async (req) => {
         }
 
         return new Response(
-          JSON.stringify(update),
+          JSON.stringify({
+            status: data.status,
+            answer: data.answer,
+            runID: data.run_id,
+            pipelineID: data.pipeline_id,
+            meta: data.meta,
+            error: data.error,
+          }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
       // List all jobs (for debugging)
-      const allJobs = Object.fromEntries(jobUpdates)
+      const { data: allJobs, error: listError } = await supabase
+        .from('webhook_job_updates')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+
       return new Response(
-        JSON.stringify({ jobs: allJobs, count: jobUpdates.size }),
+        JSON.stringify({ jobs: allJobs || [], count: allJobs?.length || 0, error: listError?.message }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
