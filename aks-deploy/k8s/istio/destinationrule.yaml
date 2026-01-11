@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: chat-ui-dr
+  namespace: chat-app
+spec:
+  host: chat-ui-service
+  trafficPolicy:
+    # Connection pool settings
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 10s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+        maxRetries: 3
+    
+    # Load balancing
+    loadBalancer:
+      simple: LEAST_REQUEST
+    
+    # Circuit breaker
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+    
+    # mTLS settings (Istio handles this automatically)
+    tls:
+      mode: ISTIO_MUTUAL

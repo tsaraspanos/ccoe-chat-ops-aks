@@ -1,0 +1,35 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: chat-ui-gateway
+  namespace: chat-app
+spec:
+  # Use the default Istio ingress gateway
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    # UPDATE THIS: Replace with your actual domain
+    - "chat.yourdomain.com"
+    # For testing, you can use a wildcard
+    # - "*"
+    
+    # Optional: Redirect HTTP to HTTPS
+    # tls:
+    #   httpsRedirect: true
+  
+  # HTTPS configuration (recommended for production)
+  # Uncomment and configure after setting up certificates
+  # - port:
+  #     number: 443
+  #     name: https
+  #     protocol: HTTPS
+  #   hosts:
+  #   - "chat.yourdomain.com"
+  #   tls:
+  #     mode: SIMPLE
+  #     credentialName: chat-ui-tls-cert  # K8s secret with TLS cert

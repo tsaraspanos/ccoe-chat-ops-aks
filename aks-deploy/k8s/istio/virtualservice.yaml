@@ -1,0 +1,76 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: chat-ui-vs
+  namespace: chat-app
+spec:
+  hosts:
+  # UPDATE THIS: Replace with your actual domain
+  - "chat.yourdomain.com"
+  # For testing with wildcard gateway
+  # - "*"
+  
+  gateways:
+  - chat-ui-gateway
+  
+  http:
+  # SSE endpoint - needs special timeout handling
+  - match:
+    - uri:
+        prefix: /api/webhook/stream
+    route:
+    - destination:
+        host: chat-ui-service
+        port:
+          number: 8080
+    timeout: 3600s  # 1 hour timeout for SSE connections
+    retries:
+      attempts: 0  # Don't retry SSE connections
+  
+  # Webhook endpoint for n8n callbacks
+  - match:
+    - uri:
+        prefix: /api/webhook
+    route:
+    - destination:
+        host: chat-ui-service
+        port:
+          number: 8080
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+      retryOn: connect-failure,refused-stream,unavailable,cancelled,retriable-4xx,reset
+  
+  # Chat API endpoint
+  - match:
+    - uri:
+        prefix: /api/chat
+    route:
+    - destination:
+        host: chat-ui-service
+        port:
+          number: 8080
+    timeout: 60s
+    retries:
+      attempts: 2
+      perTryTimeout: 30s
+  
+  # Health check
+  - match:
+    - uri:
+        exact: /health
+    route:
+    - destination:
+        host: chat-ui-service
+        port:
+          number: 8080
+    timeout: 5s
+  
+  # Default route - frontend static files
+  - route:
+    - destination:
+        host: chat-ui-service
+        port:
+          number: 8080
+    timeout: 30s
