@@ -29,6 +29,7 @@ az acr login --name ${ACR_NAME}
 # Build the image
 echo "Building Docker image..."
 docker build \
+  --platform linux/amd64 \
   -f aks-deploy/Dockerfile \
   -t ${ACR_NAME}.azurecr.io/${IMAGE_NAME}:${VERSION} \
   -t ${ACR_NAME}.azurecr.io/${IMAGE_NAME}:latest \

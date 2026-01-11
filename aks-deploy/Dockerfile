@@ -6,7 +6,7 @@
 # =============================================================================
 # Stage 1: Build Frontend
 # =============================================================================
-FROM node:18-alpine AS frontend-builder
+FROM --platform=linux/amd64 node:18-alpine AS frontend-builder
 
 WORKDIR /app
 
@@ -31,7 +31,7 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Build Backend
 # =============================================================================
-FROM node:18-alpine AS backend-builder
+FROM --platform=linux/amd64 node:18-alpine AS backend-builder
 
 WORKDIR /app/server
 
@@ -51,7 +51,7 @@ RUN npm run build
 # =============================================================================
 # Stage 3: Production Runtime
 # =============================================================================
-FROM node:18-alpine AS runtime
+FROM --platform=linux/amd64 node:18-alpine AS runtime
 
 WORKDIR /app
 
