@@ -20,7 +20,7 @@ export function ChatHeader({ sessionId, onClearChat }: ChatHeaderProps) {
           <Bot className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-sm font-semibold text-foreground">AI Assistant</h1>
+          <h1 className="text-sm font-semibold text-foreground">CCoE Operations Assistant</h1>
           <p className="text-[10px] text-muted-foreground">
             Session: {sessionId.slice(0, 8)}...
           </p>
