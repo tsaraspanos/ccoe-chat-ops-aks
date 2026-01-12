@@ -61,7 +61,7 @@ function extractAnswer(data: N8nResponse): string | undefined {
 }
 
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
-  const webhookUrl = await getN8nWebhookUrl();
+  const webhookUrl = getChatEndpoint();
   
   if (!webhookUrl) {
     throw new Error('n8n webhook URL is not configured');
