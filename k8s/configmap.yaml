@@ -9,7 +9,7 @@ data:
   NODE_ENV: "development"
   
   # n8n webhook URL - UPDATE THIS to your internal n8n endpoint
-  N8N_WEBHOOK_URL: "http://n8n-service.n8n-namespace.svc.cluster.local:5678/webhook/chat"
+  N8N_WEBHOOK_URL: "http://n8n-service.n8n-namespace.svc.cluster.local/webhook/chat-ui-trigger"
   
   # CORS - Update with your actual frontend domain
   # Use "*" for testing, specific domain for production
