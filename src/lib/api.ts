@@ -7,38 +7,20 @@
 
 import { ChatRequest, ChatResponse } from '@/types/chat';
 
-// Runtime config - fetched from backend
-let n8nWebhookUrl: string | null = null;
-
-async function getN8nWebhookUrl(): Promise<string> {
-  if (n8nWebhookUrl) {
-    return n8nWebhookUrl;
-  }
-
-  // In development, use env var or default
+/**
+ * IMPORTANT:
+ * - In production we call our own backend (`/api/chat`) so the browser never needs
+ *   access to the (internal) n8n URL and we avoid CORS issues.
+ * - In development you can optionally call n8n directly via VITE_N8N_WEBHOOK_URL.
+ */
+function getChatEndpoint(): string {
   if (import.meta.env.DEV) {
-    n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/chat';
-    console.log('API Config (dev):', { n8nWebhookUrl });
-    return n8nWebhookUrl;
+    return import.meta.env.VITE_N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/chat';
   }
 
-  // In production, fetch from backend
-  try {
-    const response = await fetch('/api/config');
-    if (response.ok) {
-      const config = await response.json();
-      n8nWebhookUrl = config.n8nWebhookUrl || '';
-      console.log('API Config (runtime):', { n8nWebhookUrl });
-      return n8nWebhookUrl;
-    }
-  } catch (error) {
-    console.error('Failed to fetch runtime config:', error);
-  }
-
-  // Fallback
-  n8nWebhookUrl = '';
-  return n8nWebhookUrl;
+  return '/api/chat';
 }
+
 
 interface N8nResponse {
   runID?: string | number;
