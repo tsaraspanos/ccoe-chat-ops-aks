@@ -159,8 +159,16 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
       meta: { raw: n8nData as Record<string, unknown> },
     };
   } catch (error) {
-    console.error('Error sending message to n8n:', error);
-    throw error;
+    const e = error as { name?: string; message?: string };
+    console.error('Error sending message:', {
+      endpoint: webhookUrl,
+      name: e?.name,
+      message: e?.message,
+      error,
+    });
+
+    // Surface a more actionable message to the UI
+    throw new Error(`Request to ${webhookUrl} failed: ${e?.message || String(error)}`);
   }
 }
 
