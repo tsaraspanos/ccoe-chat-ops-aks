@@ -37,7 +37,8 @@ Before deploying, update these values in the manifests:
 | File | Value to Update |
 |------|-----------------|
 | `k8s/deployment.yaml` | `<YOUR_ACR_NAME>.azurecr.io/ccoe-chat-ops:latest` |
-| `k8s/ingress.yaml` | `chat.yourdomain.com` → your domain |
+| `k8s/istio-virtual-service.yaml` | `chat.yourdomain.com` → your domain |
+| `k8s/istio-virtual-service.yaml` | `istio-system/central-gateway` → your gateway |
 | `k8s/configmap.yaml` | `ALLOWED_ORIGIN` → your frontend URL |
 
 ## Step 3: Create Secrets (Do this BEFORE applying manifests)
@@ -84,8 +85,11 @@ kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/configmap.yaml
 kubectl apply -f k8s/deployment.yaml
 kubectl apply -f k8s/service.yaml
-kubectl apply -f k8s/ingress.yaml
 kubectl apply -f k8s/hpa.yaml
+
+# Apply Istio manifests
+kubectl apply -f k8s/istio-virtual-service.yaml
+kubectl apply -f k8s/istio-destination-rule.yaml
 
 # Or apply all at once:
 kubectl apply -f k8s/
@@ -103,8 +107,11 @@ kubectl get deployments -n ccoe-chat-ops
 # Check service
 kubectl get svc -n ccoe-chat-ops
 
-# Check ingress (get external IP/hostname)
-kubectl get ingress -n ccoe-chat-ops
+# Check Istio VirtualService
+kubectl get virtualservice -n ccoe-chat-ops
+
+# Check Istio DestinationRule
+kubectl get destinationrule -n ccoe-chat-ops
 
 # View logs
 kubectl logs -n ccoe-chat-ops -l app=ccoe-chat-ops --tail=100 -f
@@ -164,14 +171,27 @@ kubectl run test --rm -it --image=curlimages/curl -- curl http://ccoe-chat-ops.c
 
 ## DNS Configuration
 
-After deploying, get the ingress IP and configure DNS:
+Configure DNS to point to your central Istio gateway:
 
 ```bash
-# Get external IP
-kubectl get ingress -n ccoe-chat-ops
+# Get the central gateway external IP
+kubectl get svc -n istio-system central-gateway
 
 # Add A record in your DNS:
-# chat.yourdomain.com → <EXTERNAL-IP>
+# chat.yourdomain.com → <GATEWAY-EXTERNAL-IP>
+```
+
+## Istio Configuration
+
+The Istio manifests include SSE (Server-Sent Events) support:
+
+- **VirtualService**: Routes traffic from central gateway to service with 1-hour timeout for SSE
+- **DestinationRule**: Configures connection pooling, HTTP/2 upgrade, and outlier detection
+
+Update your gateway reference in `istio-virtual-service.yaml`:
+```yaml
+gateways:
+  - istio-system/central-gateway  # Change to match your gateway
 ```
 
 ## Environment Variables Reference

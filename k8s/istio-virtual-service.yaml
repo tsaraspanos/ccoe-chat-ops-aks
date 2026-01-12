@@ -1,0 +1,29 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ccoe-chat-ops
+  namespace: ccoe-chat-ops
+  labels:
+    app: ccoe-chat-ops
+spec:
+  # UPDATE: Add your domain(s) here
+  hosts:
+    - chat.yourdomain.com
+  # UPDATE: Reference your central gateway (namespace/gateway-name)
+  gateways:
+    - istio-system/central-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: ccoe-chat-ops.ccoe-chat-ops.svc.cluster.local
+            port:
+              number: 80
+      # SSE support - extended timeouts
+      timeout: 3600s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: connect-failure,refused-stream,unavailable,cancelled,resource-exhausted
