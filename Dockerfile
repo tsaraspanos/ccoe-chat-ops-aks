@@ -52,9 +52,9 @@ RUN addgroup -g 1001 -S nodejs && \
 COPY --from=frontend-builder /app/dist ./dist
 
 # Copy backend package files and install production dependencies
-COPY server/package.json server/package-lock.json* ./server/
+COPY server/package.json ./server/
 WORKDIR /app/server
-RUN npm ci --omit=dev
+RUN npm install --omit=dev
 
 # Copy built backend from backend-builder
 COPY --from=backend-builder /app/server/dist ./dist
