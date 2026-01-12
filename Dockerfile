@@ -5,10 +5,6 @@ FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app
 
-# Accept build-time env vars for Vite
-ARG VITE_N8N_WEBHOOK_URL
-ENV VITE_N8N_WEBHOOK_URL=$VITE_N8N_WEBHOOK_URL
-
 # Copy frontend package files
 COPY package.json package-lock.json* ./
 
@@ -18,7 +14,7 @@ RUN npm ci || npm install
 # Copy frontend source
 COPY . .
 
-# Build frontend (Vite will bake VITE_* env vars into the bundle)
+# Build frontend
 RUN npm run build
 
 # =============================================================================
