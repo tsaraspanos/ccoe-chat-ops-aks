@@ -2,16 +2,43 @@
  * SSE Version - API Layer
  * 
  * Sends chat messages to n8n webhook.
- * Uses environment variable or falls back to localhost for development.
+ * Fetches config from backend at runtime for flexibility.
  */
 
 import { ChatRequest, ChatResponse } from '@/types/chat';
 
-// In production (Docker), this comes from env; in dev, use localhost
-const N8N_WEBHOOK_URL = import.meta.env.VITE_N8N_WEBHOOK_URL || 
-  'http://localhost:5678/webhook/chat';
+// Runtime config - fetched from backend
+let n8nWebhookUrl: string | null = null;
 
-console.log('API Config:', { N8N_WEBHOOK_URL });
+async function getN8nWebhookUrl(): Promise<string> {
+  if (n8nWebhookUrl) {
+    return n8nWebhookUrl;
+  }
+
+  // In development, use env var or default
+  if (import.meta.env.DEV) {
+    n8nWebhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/chat';
+    console.log('API Config (dev):', { n8nWebhookUrl });
+    return n8nWebhookUrl;
+  }
+
+  // In production, fetch from backend
+  try {
+    const response = await fetch('/api/config');
+    if (response.ok) {
+      const config = await response.json();
+      n8nWebhookUrl = config.n8nWebhookUrl || '';
+      console.log('API Config (runtime):', { n8nWebhookUrl });
+      return n8nWebhookUrl;
+    }
+  } catch (error) {
+    console.error('Failed to fetch runtime config:', error);
+  }
+
+  // Fallback
+  n8nWebhookUrl = '';
+  return n8nWebhookUrl;
+}
 
 interface N8nResponse {
   runID?: string | number;
@@ -52,6 +79,12 @@ function extractAnswer(data: N8nResponse): string | undefined {
 }
 
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
+  const webhookUrl = await getN8nWebhookUrl();
+  
+  if (!webhookUrl) {
+    throw new Error('n8n webhook URL is not configured');
+  }
+
   const formData = new FormData();
   formData.append('sessionId', request.sessionId);
 
@@ -70,7 +103,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
   }
 
   try {
-    console.log('Sending message to n8n...');
+    console.log('Sending message to n8n:', webhookUrl);
 
     const controller = new AbortController();
     const timeoutMs = 30000;
@@ -78,7 +111,7 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
 
     let triggerResponse: Response;
     try {
-      triggerResponse = await fetch(N8N_WEBHOOK_URL, {
+      triggerResponse = await fetch(webhookUrl, {
         method: 'POST',
         body: formData,
         signal: controller.signal,

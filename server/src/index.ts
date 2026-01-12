@@ -4,6 +4,7 @@ import path from 'path';
 import chatRouter from './routes/chat';
 import healthRouter from './routes/health';
 import webhookRouter from './routes/webhook';
+import configRouter from './routes/config';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -21,6 +22,9 @@ app.use(express.json());
 
 // Health check endpoint
 app.use('/health', healthRouter);
+
+// Runtime config endpoint (returns env vars to frontend)
+app.use('/api/config', configRouter);
 
 // Chat API endpoint
 app.use('/api/chat', chatRouter);
