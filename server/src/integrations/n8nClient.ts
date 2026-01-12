@@ -2,24 +2,16 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import { ChatPayload, ChatResponse, AttachmentInfo } from '../types';
 
-const N8N_WEBHOOK_URL = process.env.N8N_WEBHOOK_URL;
+function requireN8nWebhookUrl(): string {
+  const url = process.env.N8N_WEBHOOK_URL;
 
-if (!N8N_WEBHOOK_URL) {
-  console.warn('⚠️  N8N_WEBHOOK_URL environment variable is not set');
-}
-
-/**
- * Send a chat message to the n8n webhook.
- * Supports both JSON (text-only) and multipart/form-data (with files).
- */
-export async function sendMessageToN8n(
-  payload: ChatPayload,
-  files?: Express.Multer.File[],
-  voice?: Express.Multer.File
-): Promise<ChatResponse> {
-  if (!N8N_WEBHOOK_URL) {
+  if (!url) {
     throw new Error('N8N_WEBHOOK_URL is not configured');
   }
+
+  return url;
+}
+
 
   const hasFiles = (files && files.length > 0) || voice;
 
