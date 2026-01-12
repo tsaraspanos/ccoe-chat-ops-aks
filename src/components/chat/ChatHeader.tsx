@@ -1,4 +1,4 @@
-import { Bot, Trash2, Settings } from 'lucide-react';
+import { Bot, Trash2, Settings, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,7 +20,13 @@ export function ChatHeader({ sessionId, onClearChat }: ChatHeaderProps) {
           <Bot className="w-5 h-5 text-white" />
         </div>
         <div>
-          <h1 className="text-sm font-semibold text-foreground">CCoE Operations Assistant</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-sm font-semibold text-foreground">CCoE Operations Assistant</h1>
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+              <Radio className="w-2.5 h-2.5" />
+              SSE
+            </span>
+          </div>
           <p className="text-[10px] text-muted-foreground">
             Session: {sessionId.slice(0, 8)}...
           </p>

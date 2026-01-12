@@ -1,7 +1,13 @@
+/**
+ * SSE Version - useChat Hook
+ * 
+ * Manages chat state and uses SSE for real-time workflow updates.
+ */
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ChatMessage, ChatState, ChatRequest } from '@/types/chat';
 import { sendChatMessage } from '@/lib/api';
-import { useWebhookRealtime, WebhookUpdate } from './useWebhookRealtime';
+import { useSSEUpdates, SSEUpdate } from './useSSEUpdates';
 import { v4 as uuidv4 } from 'uuid';
 
 const SESSION_KEY = 'chat-session-id';
@@ -15,10 +21,7 @@ function getOrCreateSessionId(): string {
   return sessionId;
 }
 
-/**
- * Normalize answer from webhook update - handles string, array, or JSON-stringified array
- */
-function normalizeAnswer(answer: string | null): string {
+function normalizeAnswer(answer: string | null | undefined): string {
   if (!answer) return '';
   
   const trimmed = answer.trim();
@@ -35,9 +38,7 @@ function normalizeAnswer(answer: string | null): string {
 
 export function useChat() {
   const isMountedRef = useRef(true);
-  
-  // Track pending runIDs that are waiting for completion
-  const pendingRunIdsRef = useRef<Map<string, string>>(new Map()); // runId -> assistantMessageId
+  const pendingJobIdsRef = useRef<Map<string, string>>(new Map());
 
   const [state, setState] = useState<ChatState>({
     messages: [],
@@ -45,6 +46,8 @@ export function useChat() {
     error: null,
     sessionId: '',
   });
+
+  const activeSubscriptionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     return () => {
@@ -56,30 +59,23 @@ export function useChat() {
     setState(prev => ({ ...prev, sessionId: getOrCreateSessionId() }));
   }, []);
 
-  // Handle incoming real-time webhook updates from n8n
-  const handleWebhookUpdate = useCallback((update: WebhookUpdate) => {
-    console.log('Processing webhook update in chat:', update);
-    
-    const runId = update.run_id;
-    const assistantMessageId = pendingRunIdsRef.current.get(runId);
+  const handleSSEUpdate = useCallback((jobId: string, update: SSEUpdate) => {
+    console.log('Processing SSE update in chat:', { jobId, update });
     
     const answerText = normalizeAnswer(update.answer);
     
-    // Build meta object from webhook update
     const meta = {
-      runID: update.run_id,
-      pipelineID: update.pipeline_id || undefined,
+      runID: jobId,
+      pipelineID: update.meta?.pipelineID as string | undefined,
       status: update.status,
     };
     
-    // Always append completion as a new message (keep the in-progress message)
-    if (assistantMessageId) {
-      console.log('Workflow completed, keeping in-progress message and adding completion for:', assistantMessageId);
-      pendingRunIdsRef.current.delete(runId);
+    if (update.status === 'completed' || update.status === 'error') {
+      pendingJobIdsRef.current.delete(jobId);
+      activeSubscriptionsRef.current.delete(jobId);
     }
     
-    // Append the completion as a new message
-    console.log('Appending completion message for runId:', runId);
+    console.log('Appending completion message for jobId:', jobId);
     
     setState((prev) => ({
       ...prev,
@@ -89,7 +85,9 @@ export function useChat() {
         {
           id: uuidv4(),
           role: 'assistant',
-          content: answerText || 'Workflow completed',
+          content: update.status === 'error' 
+            ? `Error: ${update.error || 'Workflow failed'}` 
+            : (answerText || 'Workflow completed'),
           timestamp: new Date(),
           meta,
         },
@@ -97,11 +95,8 @@ export function useChat() {
     }));
   }, []);
 
-  // Subscribe to real-time webhook updates
-  useWebhookRealtime({
-    onUpdate: handleWebhookUpdate,
-    sessionId: state.sessionId || undefined,
-    completedOnly: true,
+  const { subscribe, unsubscribe } = useSSEUpdates({
+    onUpdate: handleSSEUpdate,
   });
 
   const sendMessage = useCallback(async (
@@ -148,14 +143,12 @@ export function useChat() {
 
       const assistantMessageId = uuidv4();
       
-      // Check if n8n returned a runID - this indicates a workflow has started
-      const runID = response.meta?.runID;
+      const jobId = response.meta?.runID || response.meta?.jobId;
       const pipelineID = response.meta?.pipelineID;
-      const hasWorkflowMeta = Boolean(runID);
+      const hasWorkflowMeta = Boolean(jobId);
       
-      // Only include meta if n8n actually sent runID (workflow in progress)
       const meta = hasWorkflowMeta ? {
-        runID,
+        runID: jobId,
         pipelineID,
         status: 'in_progress',
       } : undefined;
@@ -168,17 +161,16 @@ export function useChat() {
         meta,
       };
 
-      // Track the runID if we have one - the webhook will update this message when complete
-      if (hasWorkflowMeta && runID) {
-        console.log('Tracking pending runID:', runID, '-> messageId:', assistantMessageId);
-        pendingRunIdsRef.current.set(runID, assistantMessageId);
+      if (hasWorkflowMeta && jobId) {
+        console.log('Tracking pending jobId:', jobId, '-> messageId:', assistantMessageId);
+        pendingJobIdsRef.current.set(jobId, assistantMessageId);
+        activeSubscriptionsRef.current.add(jobId);
+        subscribe(jobId);
       }
 
       setState(prev => ({
         ...prev,
         messages: [...prev.messages, assistantMessage],
-        // Only block input while waiting for the immediate n8n response.
-        // Workflows can keep running in the background; completion comes via webhook.
         isLoading: false,
       }));
 
@@ -189,16 +181,21 @@ export function useChat() {
         error: error instanceof Error ? error.message : 'An error occurred',
       }));
     }
-  }, [state.sessionId]);
+  }, [state.sessionId, subscribe]);
 
   const clearChat = useCallback(() => {
-    pendingRunIdsRef.current.clear();
+    activeSubscriptionsRef.current.forEach(jobId => {
+      unsubscribe(jobId);
+    });
+    activeSubscriptionsRef.current.clear();
+    pendingJobIdsRef.current.clear();
+    
     setState(prev => ({
       ...prev,
       messages: [],
       error: null,
     }));
-  }, []);
+  }, [unsubscribe]);
 
   const clearError = useCallback(() => {
     setState(prev => ({ ...prev, error: null }));

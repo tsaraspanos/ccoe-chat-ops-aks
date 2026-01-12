@@ -38,6 +38,7 @@ export interface ChatResponse {
   answer: string;
   meta?: {
     runID?: string;
+    jobId?: string;
     pipelineID?: string;
     toolCalls?: unknown[];
     raw?: Record<string, unknown>;
