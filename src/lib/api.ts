@@ -14,11 +14,12 @@ import { ChatRequest, ChatResponse } from '@/types/chat';
  * - In development you can optionally call n8n directly via VITE_N8N_WEBHOOK_URL.
  */
 function getChatEndpoint(): string {
-  if (import.meta.env.DEV) {
-    return import.meta.env.VITE_N8N_WEBHOOK_URL || 'http://localhost:5678/webhook/chat';
-  }
-
-  return '/api/chat';
+  // Direct n8n call (bypasses /api/chat)
+  // NOTE: This requires n8n to allow CORS from your app origin.
+  return (
+    import.meta.env.VITE_N8N_WEBHOOK_URL ||
+    'https://n8n-dev.dei.gr/webhook/chat-ui-trigger'
+  );
 }
 
 
