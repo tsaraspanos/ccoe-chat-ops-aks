@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: chat-ui-ingress
+  namespace: chat-ui
+  annotations:
+    # For NGINX Ingress Controller
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # SSE support - disable buffering
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # For cert-manager (optional - comment out if not using)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  # Uncomment and configure TLS for HTTPS
+  # tls:
+  #   - hosts:
+  #       - chat.yourdomain.com
+  #     secretName: chat-ui-tls
+  rules:
+    - host: chat.yourdomain.com  # UPDATE: Your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: chat-ui
+                port:
+                  number: 80
