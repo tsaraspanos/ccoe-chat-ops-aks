@@ -103,7 +103,42 @@ export async function sendChatMessage(request: ChatRequest): Promise<ChatRespons
     }
 
     if (!triggerResponse.ok) {
-      throw new Error(`Chat request failed: ${triggerResponse.statusText}`);
+      // Try to surface backend error details (very useful in K8s/Ingress setups)
+      let errorDetails = '';
+      try {
+        const contentType = triggerResponse.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = (await triggerResponse.json()) as unknown;
+          if (json && typeof json === 'object') {
+            const maybeError = (json as Record<string, unknown>).error;
+            const maybeMessage = (json as Record<string, unknown>).message;
+            if (typeof maybeError === 'string' && maybeError.trim()) {
+              errorDetails = maybeError.trim();
+            } else if (typeof maybeMessage === 'string' && maybeMessage.trim()) {
+              errorDetails = maybeMessage.trim();
+            } else {
+              errorDetails = JSON.stringify(json);
+            }
+          } else if (typeof json === 'string') {
+            errorDetails = json;
+          }
+        } else {
+          errorDetails = (await triggerResponse.text()).trim();
+        }
+      } catch {
+        // ignore parsing errors
+      }
+
+      console.error('Chat request failed', {
+        status: triggerResponse.status,
+        statusText: triggerResponse.statusText,
+        errorDetails,
+      });
+
+      const suffix = errorDetails ? ` - ${errorDetails}` : '';
+      throw new Error(
+        `Chat request failed (${triggerResponse.status} ${triggerResponse.statusText})${suffix}`
+      );
     }
 
     const n8nData: N8nResponse = await triggerResponse.json();
