@@ -1,36 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: chat-ui
-  namespace: chat-ui
+  name: ccoe-chat-ops
+  namespace: ccoe-chat-ops
   labels:
-    app: chat-ui
+    app: ccoe-chat-ops
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: chat-ui
+      app: ccoe-chat-ops
   template:
     metadata:
       labels:
-        app: chat-ui
+        app: ccoe-chat-ops
     spec:
       containers:
-        - name: chat-ui
+        - name: ccoe-chat-ops
           # UPDATE: Replace with your ACR registry
-          image: <YOUR_ACR_NAME>.azurecr.io/chat-ui:latest
+          image: <YOUR_ACR_NAME>.azurecr.io/ccoe-chat-ops:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
               protocol: TCP
           envFrom:
             - configMapRef:
-                name: chat-ui-config
+                name: ccoe-chat-ops-config
           env:
             - name: N8N_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:
-                  name: chat-ui-secrets
+                  name: ccoe-chat-ops-secrets
                   key: n8n-webhook-url
           resources:
             requests:

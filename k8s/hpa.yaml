@@ -1,13 +1,13 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: chat-ui-hpa
-  namespace: chat-ui
+  name: ccoe-chat-ops-hpa
+  namespace: ccoe-chat-ops
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: chat-ui
+    name: ccoe-chat-ops
   minReplicas: 2
   maxReplicas: 10
   metrics:
