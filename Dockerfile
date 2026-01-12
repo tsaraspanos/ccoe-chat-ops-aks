@@ -25,10 +25,10 @@ FROM node:18-alpine AS backend-builder
 WORKDIR /app/server
 
 # Copy backend package files
-COPY server/package.json server/package-lock.json* ./
+COPY server/package.json ./
 
-# Install backend dependencies
-RUN npm ci
+# Install backend dependencies (using npm install since no lock file)
+RUN npm install
 
 # Copy backend source
 COPY server/src ./src
