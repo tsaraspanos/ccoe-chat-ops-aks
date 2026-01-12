@@ -1,0 +1,57 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ccoe-chat-ops
+  namespace: ccoe-chat-ops
+  labels:
+    app: ccoe-chat-ops
+spec:
+  # UPDATE: Add your domain(s) here
+  hosts:
+    - ccoe-chat-ops-dev.dei.gr
+  gateways:
+    - istio-ingress/ingress-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: ccoe-chat-ops.ccoe-chat-ops.svc.cluster.local
+            port:
+              number: 80
+      # SSE support - extended timeouts
+      timeout: 3600s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: connect-failure,refused-stream,unavailable,cancelled,resource-exhausted
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ccoe-chat-ops
+  namespace: ccoe-chat-ops
+  labels:
+    app: ccoe-chat-ops
+spec:
+  host: ccoe-chat-ops.ccoe-chat-ops.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+        # SSE support - disable idle timeout
+        idleTimeout: 3600s
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50

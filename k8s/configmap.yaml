@@ -6,7 +6,7 @@ metadata:
 data:
   # Server configuration
   PORT: "8080"
-  NODE_ENV: "production"
+  NODE_ENV: "development"
   
   # CORS - Update with your actual frontend domain
   # Use "*" for testing, specific domain for production

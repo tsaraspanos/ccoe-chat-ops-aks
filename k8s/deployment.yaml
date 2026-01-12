@@ -18,7 +18,7 @@ spec:
       containers:
         - name: ccoe-chat-ops
           # UPDATE: Replace with your ACR registry
-          image: <YOUR_ACR_NAME>.azurecr.io/ccoe-chat-ops:latest
+          image: acrmsadevgwci74k.azurecr.io/ccoe-chat-ops:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080

@@ -1,0 +1,159 @@
+{
+  "name": "Sub-DelAppReg",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{  \n    \"AppRegistrationName\": \"\",   \n    \"AppRegistrationClientId\": \"\"  \n  }"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1232,
+        -272
+      ],
+      "id": "febb188b-3551-4a9c-ae6d-0ad6caccd949",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://login.microsoftonline.com/ce73e05e-1b4e-4df3-b69c-705b18aaeefe/oauth2/v2.0/token",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            },
+            {
+              "name": "grant_type",
+              "value": "client_credentials"
+            },
+            {
+              "name": "client_id",
+              "value": "dd76c3e3-42e9-4325-8e3f-04bf031a5a74"
+            },
+            {
+              "name": "client_secret",
+              "value": "OUR8Q~fv9OTV-jlXghk3p5na7Fr3iJVqZK-ZDaK9"
+            },
+            {
+              "name": "scope",
+              "value": "499b84ac-1321-427f-aa17-267ca6975798/.default"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        -272
+      ],
+      "id": "d6e37f5e-5a4c-4746-b71d-3c77754f7d3f",
+      "name": "Entra Get Access Token"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://dev.azure.com/ppcsa/PPC%20-%20Automations/_apis/pipelines/2841/runs?api-version=7.1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.access_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n    \"resources\": {\n        \"repositories\": {\n            \"self\": {\n                \"refName\": \"refs/heads/delete-app-registration\"\n            }\n        }\n    },\n    \"templateParameters\": {\n    \"AppRegistrationName\": \"{{ $('When Executed by Another Workflow').item.json.AppRegistrationName }}\",   \n    \"AppRegistrationClientId\": \"{{ $('When Executed by Another Workflow').item.json.AppRegistrationClientId }}\"\n    }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -832,
+        -272
+      ],
+      "id": "f5e85db6-03f7-4020-84c3-437285540a3a",
+      "name": "DevOps Pipeline execution"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={\n  \"runID\": {{ $json.id }},\n  \"pipelineID\": {{ $json.pipeline.id }},\n  \"status\": \"In progress\",\n  \"answer\": \"The execution of your request is in progress. I will update you upon completion.\"\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -656,
+        -272
+      ],
+      "id": "d1546d6c-12ef-41a0-8dfd-f31a8a38215e",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Entra Get Access Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Entra Get Access Token": {
+      "main": [
+        [
+          {
+            "node": "DevOps Pipeline execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DevOps Pipeline execution": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "aa313ddf-f2dd-4cc7-9ba6-ae9d0989d079",
+  "meta": {
+    "instanceId": "2905781eaaed09b34ad7671f9b0a421a341a76a1ec3f9cd95a5aa14e665aca53"
+  },
+  "id": "dBq09S1nyucG4tGH",
+  "tags": []
+}
