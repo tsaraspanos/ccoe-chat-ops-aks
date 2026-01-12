@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: chat-ui-ingress
-  namespace: chat-ui
+  name: ccoe-chat-ops-ingress
+  namespace: ccoe-chat-ops
   annotations:
     # For NGINX Ingress Controller
     kubernetes.io/ingress.class: nginx
@@ -19,7 +19,7 @@ spec:
   # tls:
   #   - hosts:
   #       - chat.yourdomain.com
-  #     secretName: chat-ui-tls
+  #     secretName: ccoe-chat-ops-tls
   rules:
     - host: chat.yourdomain.com  # UPDATE: Your domain
       http:
@@ -28,6 +28,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: chat-ui
+                name: ccoe-chat-ops
                 port:
                   number: 80

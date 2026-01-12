@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: chat-ui-config
-  namespace: chat-ui
+  name: ccoe-chat-ops-config
+  namespace: ccoe-chat-ops
 data:
   # Server configuration
   PORT: "8080"
