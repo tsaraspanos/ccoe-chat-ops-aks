@@ -1,3 +1,7 @@
+# =============================================================================
+# CCoE Chat Ops - Deployment
+# Main application deployment with health checks and resource limits
+# =============================================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,8 +21,16 @@ spec:
     spec:
       containers:
         - name: ccoe-chat-ops
+<<<<<<< HEAD
           # UPDATE: Replace with your ACR registry
           image: acrmsadevgwci74k.azurecr.io/ccoe-chat-ops:1.0.3
+=======
+          # ┌─────────────────────────────────────────────────────────────────┐
+          # │ UPDATE: Replace with your ACR registry and image tag            │
+          # │ Example: myacr.azurecr.io/ccoe-chat-ops:v1.0.0                   │
+          # └─────────────────────────────────────────────────────────────────┘
+          image: <YOUR_ACR_NAME>.azurecr.io/ccoe-chat-ops:latest
+>>>>>>> refs/remotes/origin/main
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -26,10 +38,6 @@ spec:
           envFrom:
             - configMapRef:
                 name: ccoe-chat-ops-config
-          # NOTE: This app reads N8N_WEBHOOK_URL from the ConfigMap above.
-          # If you also set it via `env:` here (e.g., from a Secret), it will override the ConfigMap.
-          # Keep this section removed unless you intentionally want the Secret to win.
-
           resources:
             requests:
               memory: "128Mi"

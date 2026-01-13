@@ -1,0 +1,67 @@
+# =============================================================================
+# CCoE Chat Ops - Istio Configuration
+# Combined VirtualService and DestinationRule for routing and connection management
+# =============================================================================
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: ccoe-chat-ops
+  namespace: ccoe-chat-ops
+  labels:
+    app: ccoe-chat-ops
+spec:
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ UPDATE: Replace with your actual domain                                 │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  hosts:
+    - ccoe-chat-ops-dev.dei.gr
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ UPDATE: Reference your central Istio gateway (namespace/gateway-name)   │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  gateways:
+    - istio-system/dei-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: ccoe-chat-ops.ccoe-chat-ops.svc.cluster.local
+            port:
+              number: 80
+      # SSE support - extended timeout for long-running connections
+      timeout: 3600s
+      retries:
+        attempts: 3
+        perTryTimeout: 10s
+        retryOn: connect-failure,refused-stream,unavailable,cancelled,resource-exhausted
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: ccoe-chat-ops
+  namespace: ccoe-chat-ops
+  labels:
+    app: ccoe-chat-ops
+spec:
+  host: ccoe-chat-ops.ccoe-chat-ops.svc.cluster.local
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        h2UpgradePolicy: UPGRADE
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 1000
+        maxRequestsPerConnection: 100
+        # SSE support - disable idle timeout for long-lived connections
+        idleTimeout: 3600s
+    loadBalancer:
+      simple: ROUND_ROBIN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50

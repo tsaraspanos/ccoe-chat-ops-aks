@@ -1,11 +1,13 @@
-import { Bot, Trash2, Settings, Radio } from 'lucide-react';
+import { Bot, Trash2, Settings, Radio, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ChatHeaderProps {
   sessionId: string;
@@ -13,6 +15,8 @@ interface ChatHeaderProps {
 }
 
 export function ChatHeader({ sessionId, onClearChat }: ChatHeaderProps) {
+  const { user, logout } = useAuth();
+
   return (
     <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card/50 backdrop-blur-sm">
       <div className="flex items-center gap-3">
@@ -33,19 +37,40 @@ export function ChatHeader({ sessionId, onClearChat }: ChatHeaderProps) {
         </div>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
-            <Settings className="w-4 h-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={onClearChat} className="text-destructive focus:text-destructive">
-            <Trash2 className="w-4 h-4 mr-2" />
-            Clear conversation
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <div className="flex items-center gap-2">
+        {user && (
+          <span className="text-xs text-muted-foreground hidden sm:block">
+            {user.name || user.email}
+          </span>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
+              <Settings className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            {user && (
+              <>
+                <DropdownMenuItem disabled className="text-muted-foreground">
+                  <User className="w-4 h-4 mr-2" />
+                  {user.email}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem onClick={onClearChat} className="text-destructive focus:text-destructive">
+              <Trash2 className="w-4 h-4 mr-2" />
+              Clear conversation
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={logout}>
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }
