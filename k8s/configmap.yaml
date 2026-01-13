@@ -1,16 +1,21 @@
+# =============================================================================
+# CCoE Chat Ops - ConfigMap
+# Runtime configuration for the application
+# =============================================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: ccoe-chat-ops-config
   namespace: ccoe-chat-ops
+  labels:
+    app: ccoe-chat-ops
 data:
   # Server configuration
   PORT: "8080"
   NODE_ENV: "production"
   
-  # n8n webhook URL - UPDATE THIS to your internal n8n endpoint
-  N8N_WEBHOOK_URL: "http://n8n-service.n8n-namespace.svc.cluster.local:5678/webhook/chat"
-  
-  # CORS - Update with your actual frontend domain
-  # Use "*" for testing, specific domain for production
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ CORS Configuration                                                      │
+  # │ Set to your frontend domain for production, or "*" for testing          │
+  # └─────────────────────────────────────────────────────────────────────────┘
   ALLOWED_ORIGIN: "*"
