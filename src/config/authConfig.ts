@@ -1,10 +1,20 @@
 import { Configuration, LogLevel } from "@azure/msal-browser";
 
+// Helper to get runtime config (from window.__RUNTIME_CONFIG__ or env vars)
+const getRuntimeConfig = (key: string, fallback: string = ""): string => {
+  // Check for runtime config injected by server (for Docker/K8s deployments)
+  if (typeof window !== "undefined" && (window as any).__RUNTIME_CONFIG__?.[key]) {
+    return (window as any).__RUNTIME_CONFIG__[key];
+  }
+  // Fall back to build-time env vars (for local development)
+  return import.meta.env[`VITE_${key}`] || fallback;
+};
+
 // MSAL configuration for Microsoft Entra ID
 export const msalConfig: Configuration = {
   auth: {
-    clientId: import.meta.env.VITE_AZURE_CLIENT_ID || "",
-    authority: `https://login.microsoftonline.com/${import.meta.env.VITE_AZURE_TENANT_ID || "common"}`,
+    clientId: getRuntimeConfig("AZURE_CLIENT_ID"),
+    authority: `https://login.microsoftonline.com/${getRuntimeConfig("AZURE_TENANT_ID", "common")}`,
     redirectUri: window.location.origin,
     postLogoutRedirectUri: window.location.origin,
   },
