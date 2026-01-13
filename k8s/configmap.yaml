@@ -12,7 +12,7 @@ metadata:
 data:
   # Server configuration
   PORT: "8080"
-  NODE_ENV: "production"
+  NODE_ENV: "development"
   
   # ┌─────────────────────────────────────────────────────────────────────────┐
   # │ CORS Configuration                                                      │
@@ -24,11 +24,11 @@ data:
   # │ Azure Entra ID (Microsoft Authentication)                               │
   # │ Get these from Azure Portal > App Registrations > Your App              │
   # └─────────────────────────────────────────────────────────────────────────┘
-  AZURE_CLIENT_ID: "<YOUR_AZURE_CLIENT_ID>"
-  AZURE_TENANT_ID: "<YOUR_AZURE_TENANT_ID>"
+  AZURE_CLIENT_ID: "dd76c3e3-42e9-4325-8e3f-04bf031a5a74"
+  AZURE_TENANT_ID: "ce73e05e-1b4e-4df3-b69c-705b18aaeefe"
   
   # ┌─────────────────────────────────────────────────────────────────────────┐
   # │ n8n Webhook URL                                                         │
   # │ The endpoint for chat messages                                          │
   # └─────────────────────────────────────────────────────────────────────────┘
-  N8N_WEBHOOK_URL: "<YOUR_N8N_WEBHOOK_URL>"
+  N8N_WEBHOOK_URL: "https://n8n-dev.dei.gr/webhook/chat-ui-trigger"
