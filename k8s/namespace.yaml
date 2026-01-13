@@ -4,3 +4,5 @@ metadata:
   name: ccoe-chat-ops
   labels:
     app: ccoe-chat-ops
+    # Enable Istio sidecar injection
+    istio-injection: enabled

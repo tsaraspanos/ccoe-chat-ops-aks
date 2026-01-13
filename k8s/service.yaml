@@ -1,3 +1,7 @@
+# =============================================================================
+# CCoE Chat Ops - Service
+# ClusterIP service for internal routing via Istio
+# =============================================================================
 apiVersion: v1
 kind: Service
 metadata:
