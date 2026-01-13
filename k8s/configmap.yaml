@@ -12,18 +12,23 @@ metadata:
 data:
   # Server configuration
   PORT: "8080"
-  NODE_ENV: "development"
+  NODE_ENV: "production"
   
-<<<<<<< HEAD
-  # n8n webhook URL - UPDATE THIS to your internal n8n endpoint
-  N8N_WEBHOOK_URL: "http://n8n-service.n8n-namespace.svc.cluster.local/webhook/chat-ui-trigger"
-  
-  # CORS - Update with your actual frontend domain
-  # Use "*" for testing, specific domain for production
-=======
   # ┌─────────────────────────────────────────────────────────────────────────┐
   # │ CORS Configuration                                                      │
   # │ Set to your frontend domain for production, or "*" for testing          │
   # └─────────────────────────────────────────────────────────────────────────┘
->>>>>>> refs/remotes/origin/main
   ALLOWED_ORIGIN: "*"
+  
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ Azure Entra ID (Microsoft Authentication)                               │
+  # │ Get these from Azure Portal > App Registrations > Your App              │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  AZURE_CLIENT_ID: "<YOUR_AZURE_CLIENT_ID>"
+  AZURE_TENANT_ID: "<YOUR_AZURE_TENANT_ID>"
+  
+  # ┌─────────────────────────────────────────────────────────────────────────┐
+  # │ n8n Webhook URL                                                         │
+  # │ The endpoint for chat messages                                          │
+  # └─────────────────────────────────────────────────────────────────────────┘
+  N8N_WEBHOOK_URL: "<YOUR_N8N_WEBHOOK_URL>"
