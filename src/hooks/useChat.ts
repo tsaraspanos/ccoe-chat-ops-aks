@@ -59,23 +59,23 @@ export function useChat() {
     setState(prev => ({ ...prev, sessionId: getOrCreateSessionId() }));
   }, []);
 
-  const handleSSEUpdate = useCallback((jobId: string, update: SSEUpdate) => {
-    console.log('Processing SSE update in chat:', { jobId, update });
+  const handleSSEUpdate = useCallback((runID: string, update: SSEUpdate) => {
+    console.log('Processing SSE update in chat:', { runID, update });
     
     const answerText = normalizeAnswer(update.answer);
     
     const meta = {
-      runID: jobId,
-      pipelineID: update.meta?.pipelineID as string | undefined,
+      runID,
+      pipelineID: update.pipelineID,
       status: update.status,
     };
     
     if (update.status === 'completed' || update.status === 'error') {
-      pendingJobIdsRef.current.delete(jobId);
-      activeSubscriptionsRef.current.delete(jobId);
+      pendingJobIdsRef.current.delete(runID);
+      activeSubscriptionsRef.current.delete(runID);
     }
     
-    console.log('Appending completion message for jobId:', jobId);
+    console.log('Appending completion message for runID:', runID);
     
     setState((prev) => ({
       ...prev,
@@ -86,7 +86,7 @@ export function useChat() {
           id: uuidv4(),
           role: 'assistant',
           content: update.status === 'error' 
-            ? `Error: ${update.error || 'Workflow failed'}` 
+            ? `Error: ${update.answer || 'Workflow failed'}` 
             : (answerText || 'Workflow completed'),
           timestamp: new Date(),
           meta,

@@ -2,10 +2,10 @@ import { Router, Request, Response } from 'express';
 
 const router = Router();
 
-// In-memory store for job updates (keyed by jobId)
-const jobUpdates: Map<string, { status: string; answer?: string; meta?: Record<string, unknown>; error?: string }> = new Map();
+// In-memory store for job updates (keyed by runID)
+const jobUpdates: Map<string, { status: string; answer?: string; pipelineID?: string }> = new Map();
 
-// SSE clients waiting for updates (keyed by jobId)
+// SSE clients waiting for updates (keyed by runID)
 const sseClients: Map<string, Response[]> = new Map();
 
 /**
@@ -14,34 +14,32 @@ const sseClients: Map<string, Response[]> = new Map();
  * 
  * Expected body:
  * {
- *   "jobId": "execution-id",
- *   "sessionId": "user-session",
+ *   "runID": "execution-id",
+ *   "pipelineID": "workflow-id",
  *   "status": "pending" | "completed" | "error",
- *   "answer": "response text (when completed)",
- *   "meta": { optional metadata },
- *   "error": "error message (when error)"
+ *   "answer": "response text"
  * }
  */
 router.post('/update', (req: Request, res: Response) => {
   try {
-    const { jobId, sessionId, status, answer, meta, error } = req.body;
+    const { runID, pipelineID, status, answer } = req.body;
 
-    if (!jobId) {
-      return res.status(400).json({ error: 'jobId is required' });
+    if (!runID) {
+      return res.status(400).json({ error: 'runID is required' });
     }
 
     if (!status) {
       return res.status(400).json({ error: 'status is required' });
     }
 
-    console.log(`📥 Webhook update received: jobId=${jobId}, status=${status}`);
+    console.log(`📥 Webhook update received: runID=${runID}, pipelineID=${pipelineID}, status=${status}`);
 
     // Store the update
-    const update = { status, answer, meta, error };
-    jobUpdates.set(jobId, update);
+    const update = { status, answer, pipelineID };
+    jobUpdates.set(runID, update);
 
-    // Notify any SSE clients waiting for this jobId
-    const clients = sseClients.get(jobId) || [];
+    // Notify any SSE clients waiting for this runID
+    const clients = sseClients.get(runID) || [];
     clients.forEach(client => {
       try {
         client.write(`data: ${JSON.stringify(update)}\n\n`);
@@ -57,12 +55,12 @@ router.post('/update', (req: Request, res: Response) => {
 
     // Clean up completed jobs after notifying
     if (status === 'completed' || status === 'error') {
-      sseClients.delete(jobId);
+      sseClients.delete(runID);
       // Keep the update for a bit in case of late poll requests
-      setTimeout(() => jobUpdates.delete(jobId), 60000);
+      setTimeout(() => jobUpdates.delete(runID), 60000);
     }
 
-    return res.json({ success: true, message: `Update received for job ${jobId}` });
+    return res.json({ success: true, message: `Update received for runID ${runID}` });
   } catch (error) {
     console.error('Webhook error:', error);
     return res.status(500).json({ error: 'Internal server error' });
@@ -70,13 +68,13 @@ router.post('/update', (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/webhook/status/:jobId
+ * GET /api/webhook/status/:runID
  * Poll endpoint for checking job status (fallback if SSE fails)
  */
-router.get('/status/:jobId', (req: Request, res: Response) => {
-  const { jobId } = req.params;
+router.get('/status/:runID', (req: Request, res: Response) => {
+  const { runID } = req.params;
   
-  const update = jobUpdates.get(jobId);
+  const update = jobUpdates.get(runID);
   
   if (!update) {
     return res.json({ status: 'pending' });
@@ -86,11 +84,11 @@ router.get('/status/:jobId', (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/webhook/stream/:jobId
+ * GET /api/webhook/stream/:runID
  * SSE endpoint - frontend connects here to receive real-time updates
  */
-router.get('/stream/:jobId', (req: Request, res: Response) => {
-  const { jobId } = req.params;
+router.get('/stream/:runID', (req: Request, res: Response) => {
+  const { runID } = req.params;
 
   // Set up SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -99,10 +97,10 @@ router.get('/stream/:jobId', (req: Request, res: Response) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.flushHeaders();
 
-  console.log(`📡 SSE client connected for jobId=${jobId}`);
+  console.log(`📡 SSE client connected for runID=${runID}`);
 
   // Check if we already have an update for this job
-  const existingUpdate = jobUpdates.get(jobId);
+  const existingUpdate = jobUpdates.get(runID);
   if (existingUpdate) {
     res.write(`data: ${JSON.stringify(existingUpdate)}\n\n`);
     if (existingUpdate.status === 'completed' || existingUpdate.status === 'error') {
@@ -112,18 +110,18 @@ router.get('/stream/:jobId', (req: Request, res: Response) => {
   }
 
   // Register this client
-  const clients = sseClients.get(jobId) || [];
+  const clients = sseClients.get(runID) || [];
   clients.push(res);
-  sseClients.set(jobId, clients);
+  sseClients.set(runID, clients);
 
   // Handle client disconnect
   req.on('close', () => {
-    console.log(`📡 SSE client disconnected for jobId=${jobId}`);
-    const remaining = (sseClients.get(jobId) || []).filter(c => c !== res);
+    console.log(`📡 SSE client disconnected for runID=${runID}`);
+    const remaining = (sseClients.get(runID) || []).filter(c => c !== res);
     if (remaining.length > 0) {
-      sseClients.set(jobId, remaining);
+      sseClients.set(runID, remaining);
     } else {
-      sseClients.delete(jobId);
+      sseClients.delete(runID);
     }
   });
 
