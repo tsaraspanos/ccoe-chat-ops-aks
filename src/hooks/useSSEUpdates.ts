@@ -10,8 +10,7 @@ import { useRef, useCallback, useEffect } from 'react';
 export interface SSEUpdate {
   status: 'pending' | 'completed' | 'error' | string;
   answer?: string;
-  meta?: Record<string, unknown>;
-  error?: string;
+  pipelineID?: string;
 }
 
 interface UseSSEUpdatesOptions {

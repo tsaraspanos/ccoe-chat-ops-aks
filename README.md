@@ -132,27 +132,25 @@ Response: { "runID": "...", "status": "in_progress" } or direct answer
 ```
 POST /api/webhook/update
 Body: {
-  "jobId": "execution-id",
-  "sessionId": "user-session",
+  "runID": "execution-id",
+  "pipelineID": "workflow-id",
   "status": "pending" | "completed" | "error",
-  "answer": "response text",
-  "meta": { optional metadata },
-  "error": "error message (when status=error)"
+  "answer": "response text"
 }
-Response: { "success": true, "message": "Update received for job {jobId}" }
+Response: { "success": true, "message": "Update received for runID {runID}" }
 ```
 
 ### Status Polling (fallback)
 ```
-GET /api/webhook/status/:jobId
-Response: { "status": "pending" | "completed" | "error", "answer": "..." }
+GET /api/webhook/status/:runID
+Response: { "status": "pending" | "completed" | "error", "answer": "...", "pipelineID": "..." }
 ```
 
 ### SSE Stream (Browser → Backend)
 ```
-GET /api/webhook/stream/:jobId
+GET /api/webhook/stream/:runID
 Response: text/event-stream
-Events: data: {"status": "completed", "answer": "..."}
+Events: data: {"status": "completed", "answer": "...", "pipelineID": "..."}
 ```
 
 ---
@@ -350,8 +348,8 @@ In your n8n workflow, configure the HTTP Request node to POST completion updates
 **Request Body:**
 ```json
 {
-  "jobId": "{{ $execution.id }}",
-  "sessionId": "{{ $json.sessionId }}",
+  "runID": "{{ $execution.id }}",
+  "pipelineID": "{{ $workflow.id }}",
   "status": "completed",
   "answer": "{{ $json.result }}"
 }
