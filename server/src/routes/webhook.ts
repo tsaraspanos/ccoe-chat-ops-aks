@@ -25,9 +25,23 @@ const sseClients: Map<string, Response[]> = new Map();
  */
 router.post('/update', (req: Request, res: Response) => {
   try {
-    const { runID, pipelineID, status: rawStatus, answer } = req.body;
+    const { runID: rawRunID, pipelineID: rawPipelineID, status: rawStatus, answer: rawAnswer } = req.body;
 
     console.log(`📥 Webhook update received at ${new Date().toISOString()}:`, JSON.stringify(req.body, null, 2));
+
+    // Normalize runID to string (can come as number from n8n)
+    const runID = rawRunID ? String(rawRunID) : '';
+    
+    // Normalize pipelineID to string
+    const pipelineID = rawPipelineID ? String(rawPipelineID) : undefined;
+    
+    // Normalize answer: can be string or array of strings
+    let answer: string | undefined;
+    if (Array.isArray(rawAnswer)) {
+      answer = rawAnswer.join('\n');
+    } else if (rawAnswer) {
+      answer = String(rawAnswer);
+    }
 
     // Determine status: use provided status, or default to 'completed' if answer exists, else 'pending'
     const status = rawStatus || (answer ? 'completed' : 'pending');
