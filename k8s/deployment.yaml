@@ -21,16 +21,11 @@ spec:
     spec:
       containers:
         - name: ccoe-chat-ops
-<<<<<<< HEAD
-          # UPDATE: Replace with your ACR registry
-          image: acrmsadevgwci74k.azurecr.io/ccoe-chat-ops:1.0.3
-=======
           # ┌─────────────────────────────────────────────────────────────────┐
           # │ UPDATE: Replace with your ACR registry and image tag            │
           # │ Example: myacr.azurecr.io/ccoe-chat-ops:v1.0.0                   │
           # └─────────────────────────────────────────────────────────────────┘
-          image: <YOUR_ACR_NAME>.azurecr.io/ccoe-chat-ops:latest
->>>>>>> refs/remotes/origin/main
+          image: acrmsadevgwci74k.azurecr.io/ccoe-chat-ops:1.0.8
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
