@@ -64,8 +64,9 @@ export function ChatMessage({ message }: ChatMessageProps) {
               {message.meta.status && (
                 <span className={cn(
                   "px-2 py-0.5 rounded",
-                  message.meta.status.toLowerCase() === 'completed' ? 'bg-green-500/20 text-green-700' :
-                  message.meta.status.toLowerCase() === 'in_progress' ? 'bg-yellow-500/20 text-yellow-700' :
+                  message.meta.status.toLowerCase() === 'completed - success' ? 'bg-green-500/20 text-green-700' :
+                  message.meta.status.toLowerCase() === 'completed - fail' ? 'bg-orange-500/20 text-orange-700' :
+                  message.meta.status.toLowerCase() === 'in_progress' || message.meta.status.toLowerCase() === 'in progress' ? 'bg-yellow-500/20 text-yellow-700' :
                   'bg-muted/50'
                 )}>
                   {message.meta.status}
