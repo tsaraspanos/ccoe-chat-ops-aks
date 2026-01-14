@@ -11,6 +11,7 @@ export interface SSEUpdate {
   status: 'pending' | 'completed' | 'error' | string;
   answer?: string;
   pipelineID?: string;
+  runID?: string | null; // Present in broadcast updates
 }
 
 interface UseSSEUpdatesOptions {
