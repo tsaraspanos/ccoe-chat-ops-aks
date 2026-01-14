@@ -1,25 +1,24 @@
 /**
  * SSE Version - API Layer
  * 
- * Sends chat messages to n8n webhook.
- * Fetches config from backend at runtime for flexibility.
+ * Sends chat messages via backend proxy to n8n.
+ * The n8n webhook URL is kept server-side only for security.
  */
 
 import { ChatRequest, ChatResponse } from '@/types/chat';
 
 /**
- * IMPORTANT:
- * - In production we call our own backend (`/api/chat`) so the browser never needs
- *   access to the (internal) n8n URL and we avoid CORS issues.
- * - In development you can optionally call n8n directly via VITE_N8N_WEBHOOK_URL.
+ * Returns the chat endpoint.
+ * In production, this proxies through our backend to keep the n8n URL private.
+ * In development, you can optionally call n8n directly via VITE_N8N_WEBHOOK_URL.
  */
 function getChatEndpoint(): string {
-  // Direct n8n call (bypasses /api/chat)
-  // NOTE: This requires n8n to allow CORS from your app origin.
-  return (
-    import.meta.env.VITE_N8N_WEBHOOK_URL ||
-    'https://n8n-dev.dei.gr/webhook/chat-ui-trigger'
-  );
+  // Allow direct n8n call in development only
+  if (import.meta.env.DEV && import.meta.env.VITE_N8N_WEBHOOK_URL) {
+    return import.meta.env.VITE_N8N_WEBHOOK_URL;
+  }
+  // Production: proxy through backend (n8n URL stays server-side)
+  return '/api/chat';
 }
 
 

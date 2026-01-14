@@ -4,16 +4,20 @@ import path from 'path';
 import fs from 'fs';
 import healthRouter from './routes/health';
 import webhookRouter from './routes/webhook';
+import chatRouter from './routes/chat';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || '*';
 
 // Runtime configuration to inject into frontend
+// NOTE: Azure Client ID and Tenant ID are PUBLIC values by OIDC/OAuth design.
+// They identify the app but provide no access without proper redirect URI validation.
+// The actual security is enforced by Azure Entra ID validating redirect URIs.
+// N8N_WEBHOOK_URL is NOT exposed here - it stays server-side only via /api/chat proxy.
 const runtimeConfig = {
   AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID || '',
   AZURE_TENANT_ID: process.env.AZURE_TENANT_ID || '',
-  N8N_WEBHOOK_URL: process.env.N8N_WEBHOOK_URL || '',
 };
 
 // CORS configuration
@@ -31,6 +35,9 @@ app.use('/health', healthRouter);
 
 // Webhook endpoint for n8n to push updates
 app.use('/api/webhook', webhookRouter);
+
+// Chat proxy endpoint (keeps n8n URL server-side)
+app.use('/api/chat', chatRouter);
 
 // Serve static frontend files in production
 const staticPath = path.join(__dirname, '../../dist');

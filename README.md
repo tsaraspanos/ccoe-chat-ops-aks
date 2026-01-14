@@ -27,21 +27,23 @@ flowchart TB
         N8N[n8n Workflows<br/>n8n-dev.dei.gr]
     end
     
-    %% User sends message directly to n8n
-    UI -->|"1. POST /webhook/chat-ui-trigger<br/>(message + sessionId)"| N8N
+    %% User sends message through backend proxy
+    UI -->|"1. POST /api/chat<br/>(message + sessionId)"| GW
+    GW --> VS --> SVC --> POD1
+    POD1 -->|"2. Proxy to n8n<br/>(webhook URL hidden)"| N8N
     
     %% n8n returns immediate acknowledgment
-    N8N -->|"2. Response: {runID, status: 'in_progress'}"| UI
+    N8N -->|"3. Response: {runID, status: 'in_progress'}"| POD1
+    POD1 -->|"4. Forward response"| UI
     
     %% UI subscribes to SSE
-    UI -->|"3. GET /api/webhook/stream/:runID<br/>(SSE connection)"| GW
-    GW --> VS --> SVC --> POD1
+    UI -->|"5. GET /api/webhook/stream/:runID<br/>(SSE connection)"| GW
     
     %% n8n workflow completes and posts update
-    N8N -->|"4. POST /api/webhook/update<br/>{jobId, status: 'completed', answer}"| GW
+    N8N -->|"6. POST /api/webhook/update<br/>{jobId, status: 'completed', answer}"| GW
     
     %% SSE pushes to client
-    POD1 -.->|"5. SSE: {status: 'completed', answer}"| UI
+    POD1 -.->|"7. SSE: {status: 'completed', answer}"| UI
     
     style UI fill:#4a90d9,stroke:#2d5a87,color:#fff
     style N8N fill:#ff6d5a,stroke:#cc4a3a,color:#fff
@@ -52,11 +54,23 @@ flowchart TB
 
 ### Communication Flow
 
-1. **User sends message**: Browser POSTs directly to n8n webhook (`https://n8n-dev.dei.gr/webhook/chat-ui-trigger`)
-2. **n8n acknowledges**: Returns `{runID, status: 'in_progress'}` immediately
-3. **UI subscribes to SSE**: Opens EventSource to `/api/webhook/stream/:runID` on the Express backend
-4. **n8n workflow completes**: POSTs result to `/api/webhook/update` with `{jobId, status, answer}`
-5. **SSE delivers update**: Backend pushes the completion message to the connected browser
+1. **User sends message**: Browser POSTs to `/api/chat` on the Express backend
+2. **Backend proxies to n8n**: Server forwards request to n8n (webhook URL stays server-side only)
+3. **n8n acknowledges**: Returns `{runID, status: 'in_progress'}` immediately
+4. **Backend forwards response**: Sends n8n response back to browser
+5. **UI subscribes to SSE**: Opens EventSource to `/api/webhook/stream/:runID`
+6. **n8n workflow completes**: POSTs result to `/api/webhook/update` with `{jobId, status, answer}`
+7. **SSE delivers update**: Backend pushes the completion message to the connected browser
+
+### Security Design
+
+| Value | Exposed in Browser? | Notes |
+|-------|---------------------|-------|
+| `AZURE_CLIENT_ID` | ✅ Yes | Public by OIDC design - identifies the app |
+| `AZURE_TENANT_ID` | ✅ Yes | Public by OIDC design - identifies the tenant |
+| `N8N_WEBHOOK_URL` | ❌ No | Stays server-side only via `/api/chat` proxy |
+
+**Note**: Azure Client ID and Tenant ID are intentionally public values in OAuth/OIDC. Security is enforced by Azure Entra ID validating redirect URIs, not by hiding these identifiers.
 
 ## Tech Stack
 
@@ -80,6 +94,7 @@ flowchart TB
 │   └── src/
 │       ├── routes/
 │       │   ├── health.ts   # Health check endpoint
+│       │   ├── chat.ts     # n8n proxy (keeps webhook URL private)
 │       │   └── webhook.ts  # n8n update receiver + SSE streaming
 │       └── index.ts        # Server entry point
 ├── k8s/                    # Kubernetes manifests
@@ -98,6 +113,19 @@ flowchart TB
 ```
 GET /health
 Response: { "status": "ok" }
+```
+
+### Chat Proxy (Browser → Backend → n8n)
+```
+POST /api/chat
+Content-Type: multipart/form-data
+Body: {
+  "sessionId": "user-session-id",
+  "message": "user message text",
+  "files[]": [optional file attachments],
+  "voice": [optional voice recording]
+}
+Response: { "runID": "...", "status": "in_progress" } or direct answer
 ```
 
 ### Webhook Update (n8n → Backend)
