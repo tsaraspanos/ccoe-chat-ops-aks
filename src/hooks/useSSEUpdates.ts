@@ -70,8 +70,9 @@ export function useSSEUpdates({ onUpdate }: UseSSEUpdatesOptions) {
         
         onUpdateRef.current(jobId, update);
 
-        // Close connection on terminal states
-        if (update.status === 'completed' || update.status === 'error') {
+        // Close connection on terminal states (but keep broadcast channel open)
+        const isBroadcast = jobId === 'broadcast';
+        if (!isBroadcast && (update.status === 'completed' || update.status === 'error')) {
           console.log(`Job ${jobId} completed, closing SSE connection`);
           eventSource.close();
           connectionsRef.current.delete(jobId);
