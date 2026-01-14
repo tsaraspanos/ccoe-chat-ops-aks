@@ -39,6 +39,7 @@ function normalizeAnswer(answer: string | null | undefined): string {
 export function useChat() {
   const isMountedRef = useRef(true);
   const pendingJobIdsRef = useRef<Map<string, string>>(new Map());
+  const broadcastSubscribedRef = useRef(false);
 
   const [state, setState] = useState<ChatState>({
     messages: [],
@@ -59,24 +60,41 @@ export function useChat() {
     setState(prev => ({ ...prev, sessionId: getOrCreateSessionId() }));
   }, []);
 
-  const handleSSEUpdate = useCallback((runID: string, update: SSEUpdate) => {
-    console.log('🔔 Processing SSE update in chat:', { runID, update, timestamp: new Date().toISOString() });
+  const handleSSEUpdate = useCallback((subscriptionKey: string, update: SSEUpdate) => {
+    // For broadcast updates, the actual runID comes from the update payload
+    const actualRunID = update.runID || subscriptionKey;
+    const isBroadcast = subscriptionKey === 'broadcast';
+    
+    console.log('🔔 Processing SSE update in chat:', { 
+      subscriptionKey, 
+      actualRunID, 
+      isBroadcast,
+      update, 
+      timestamp: new Date().toISOString() 
+    });
     
     const answerText = normalizeAnswer(update.answer);
     console.log('🔔 Normalized answer:', answerText);
     
+    // Skip if no answer content
+    if (!answerText && update.status !== 'error') {
+      console.log('🔔 Skipping update with no answer content');
+      return;
+    }
+    
     const meta = {
-      runID,
+      runID: actualRunID !== 'broadcast' ? actualRunID : undefined,
       pipelineID: update.pipelineID,
       status: update.status,
     };
     
-    if (update.status === 'completed' || update.status === 'error') {
-      pendingJobIdsRef.current.delete(runID);
-      activeSubscriptionsRef.current.delete(runID);
+    // Clean up tracking for specific runID updates
+    if (!isBroadcast && (update.status === 'completed' || update.status === 'error')) {
+      pendingJobIdsRef.current.delete(actualRunID);
+      activeSubscriptionsRef.current.delete(actualRunID);
     }
     
-    console.log('Appending completion message for runID:', runID);
+    console.log('Appending completion message:', isBroadcast ? '(broadcast)' : `runID=${actualRunID}`);
     
     setState((prev) => ({
       ...prev,
@@ -99,6 +117,23 @@ export function useChat() {
   const { subscribe, unsubscribe } = useSSEUpdates({
     onUpdate: handleSSEUpdate,
   });
+  
+  // Subscribe to broadcast channel on mount
+  useEffect(() => {
+    if (!broadcastSubscribedRef.current) {
+      console.log('📡 Subscribing to broadcast channel for ServiceNow updates');
+      subscribe('broadcast');
+      broadcastSubscribedRef.current = true;
+    }
+    
+    return () => {
+      if (broadcastSubscribedRef.current) {
+        console.log('📡 Unsubscribing from broadcast channel');
+        unsubscribe('broadcast');
+        broadcastSubscribedRef.current = false;
+      }
+    };
+  }, [subscribe, unsubscribe]);
 
   const sendMessage = useCallback(async (
     content: string,

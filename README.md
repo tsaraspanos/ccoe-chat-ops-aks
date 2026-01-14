@@ -132,13 +132,17 @@ Response: { "runID": "...", "status": "in_progress" } or direct answer
 ```
 POST /api/webhook/update
 Body: {
-  "runID": "execution-id",
-  "pipelineID": "workflow-id",
-  "status": "pending" | "completed" | "error",
+  "runID": "execution-id" (optional - if empty, broadcasts to latest message),
+  "pipelineID": "workflow-id" (optional),
+  "status": "pending" | "completed" | "error" (optional - defaults to "completed" if answer provided),
   "answer": "response text"
 }
 Response: { "success": true, "message": "Update received for runID {runID}" }
 ```
+
+**Workflow Types:**
+- **DevOps workflows**: Send all fields (runID, pipelineID, status, answer)
+- **ServiceNow workflows**: Send only `answer` - other fields can be empty. The update broadcasts to the active chat session.
 
 ### Status Polling (fallback)
 ```
@@ -149,8 +153,9 @@ Response: { "status": "pending" | "completed" | "error", "answer": "...", "pipel
 ### SSE Stream (Browser → Backend)
 ```
 GET /api/webhook/stream/:runID
+GET /api/webhook/stream/broadcast  (for broadcast channel - receives updates without runID)
 Response: text/event-stream
-Events: data: {"status": "completed", "answer": "...", "pipelineID": "..."}
+Events: data: {"status": "completed", "answer": "...", "pipelineID": "...", "runID": "..."}
 ```
 
 ---
