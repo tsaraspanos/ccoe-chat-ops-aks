@@ -48,31 +48,27 @@ router.post('/update', (req: Request, res: Response) => {
       jobUpdates.set(runID, { status, answer, pipelineID });
     }
 
-    // Get clients to notify
-    let clients: Response[] = [];
+    // Get clients to notify - always include broadcast listeners
+    const specificClients = runID ? (sseClients.get(runID) || []) : [];
+    const broadcastClients = sseClients.get(BROADCAST_KEY) || [];
     
-    if (isBroadcast) {
-      // Broadcast mode: notify all broadcast listeners
-      clients = sseClients.get(BROADCAST_KEY) || [];
-      console.log(`📡 Broadcasting to ${clients.length} broadcast listener(s)`);
-    } else {
-      // Specific runID: notify clients waiting for this runID
-      clients = sseClients.get(runID) || [];
-      console.log(`📡 Found ${clients.length} SSE client(s) waiting for runID=${runID}`);
+    // Combine both: specific runID subscribers + broadcast subscribers
+    const allClients = [...specificClients, ...broadcastClients];
+    
+    console.log(`📡 Found ${specificClients.length} SSE client(s) for runID=${runID || '(none)'}, ${broadcastClients.length} broadcast listener(s)`);
+    
+    if (allClients.length === 0) {
+      console.warn(`⚠️ No SSE clients connected. Update stored for polling.`);
     }
     
-    if (clients.length === 0) {
-      console.warn(`⚠️ No SSE clients connected for ${isBroadcast ? 'broadcast' : `runID=${runID}`}. Update stored for polling.`);
-    }
-    
-    clients.forEach((client, index) => {
+    allClients.forEach((client, index) => {
       try {
-        console.log(`📤 Sending SSE update to client ${index + 1}/${clients.length}`);
+        const isBroadcastClient = broadcastClients.includes(client);
+        console.log(`📤 Sending SSE update to client ${index + 1}/${allClients.length} (broadcast: ${isBroadcastClient})`);
         client.write(`data: ${JSON.stringify(update)}\n\n`);
         
-        // For broadcast, don't close connections (they stay open for more updates)
-        // For specific runID with terminal status, close the connection
-        if (!isBroadcast && (status === 'completed' || status === 'error')) {
+        // Only close specific runID clients on terminal status (never close broadcast clients)
+        if (!isBroadcastClient && (status === 'completed' || status === 'error')) {
           console.log(`🔚 Closing SSE connection for client ${index + 1} (status=${status})`);
           client.end();
         }
