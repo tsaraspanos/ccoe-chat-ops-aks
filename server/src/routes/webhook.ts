@@ -24,15 +24,20 @@ router.post('/update', (req: Request, res: Response) => {
   try {
     const { runID, pipelineID, status, answer } = req.body;
 
+    console.log(`📥 Webhook update received at ${new Date().toISOString()}:`, JSON.stringify(req.body, null, 2));
+
     if (!runID) {
+      console.error('❌ Missing runID in webhook payload');
       return res.status(400).json({ error: 'runID is required' });
     }
 
     if (!status) {
+      console.error('❌ Missing status in webhook payload');
       return res.status(400).json({ error: 'status is required' });
     }
 
-    console.log(`📥 Webhook update received: runID=${runID}, pipelineID=${pipelineID}, status=${status}`);
+    console.log(`✅ Valid webhook: runID=${runID}, pipelineID=${pipelineID}, status=${status}, answer=${answer?.substring(0, 100)}...`);
+    console.log(`📊 Current SSE clients waiting:`, Array.from(sseClients.keys()));
 
     // Store the update
     const update = { status, answer, pipelineID };
@@ -40,16 +45,24 @@ router.post('/update', (req: Request, res: Response) => {
 
     // Notify any SSE clients waiting for this runID
     const clients = sseClients.get(runID) || [];
-    clients.forEach(client => {
+    console.log(`📡 Found ${clients.length} SSE client(s) waiting for runID=${runID}`);
+    
+    if (clients.length === 0) {
+      console.warn(`⚠️ No SSE clients connected for runID=${runID}. Update stored for polling.`);
+    }
+    
+    clients.forEach((client, index) => {
       try {
+        console.log(`📤 Sending SSE update to client ${index + 1}/${clients.length} for runID=${runID}`);
         client.write(`data: ${JSON.stringify(update)}\n\n`);
         
         // If completed or error, close the connection
         if (status === 'completed' || status === 'error') {
+          console.log(`🔚 Closing SSE connection for client ${index + 1} (status=${status})`);
           client.end();
         }
       } catch (e) {
-        console.error('Error sending SSE update:', e);
+        console.error('❌ Error sending SSE update:', e);
       }
     });
 

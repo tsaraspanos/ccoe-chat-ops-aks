@@ -60,9 +60,10 @@ export function useChat() {
   }, []);
 
   const handleSSEUpdate = useCallback((runID: string, update: SSEUpdate) => {
-    console.log('Processing SSE update in chat:', { runID, update });
+    console.log('🔔 Processing SSE update in chat:', { runID, update, timestamp: new Date().toISOString() });
     
     const answerText = normalizeAnswer(update.answer);
+    console.log('🔔 Normalized answer:', answerText);
     
     const meta = {
       runID,
@@ -162,7 +163,8 @@ export function useChat() {
       };
 
       if (hasWorkflowMeta && jobId) {
-        console.log('Tracking pending jobId:', jobId, '-> messageId:', assistantMessageId);
+        console.log('📡 Tracking pending jobId:', jobId, '-> messageId:', assistantMessageId);
+        console.log('📡 Subscribing to SSE stream for runID:', jobId);
         pendingJobIdsRef.current.set(jobId, assistantMessageId);
         activeSubscriptionsRef.current.add(jobId);
         subscribe(jobId);
