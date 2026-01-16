@@ -73,6 +73,13 @@ export function useChat() {
       timestamp: new Date().toISOString() 
     });
     
+    // DEDUPLICATION: If this is a broadcast update but we have a specific subscription for this runID,
+    // skip it to avoid duplicate messages (we'll get it from the specific subscription)
+    if (isBroadcast && actualRunID && activeSubscriptionsRef.current.has(actualRunID)) {
+      console.log('🔔 Skipping broadcast update - already subscribed to specific runID:', actualRunID);
+      return;
+    }
+    
     const answerText = normalizeAnswer(update.answer);
     console.log('🔔 Normalized answer:', answerText);
     
