@@ -3,9 +3,9 @@
 A full-stack TypeScript chat UI microservice designed for Azure Kubernetes Service (AKS) with Istio. The frontend communicates directly with n8n workflows, while n8n sends completion updates back through the backend's webhook endpoint.
 
 ## Architecture
-
+![Architecture](docs/architecture.drawio.png) 
 ```
-![Architecture](docs/architecture.drawio.png)
+
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                      Architecture                                            │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
