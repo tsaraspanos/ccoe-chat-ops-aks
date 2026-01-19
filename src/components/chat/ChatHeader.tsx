@@ -1,4 +1,4 @@
-import { Bot, Trash2, Settings, Radio, LogOut, User } from 'lucide-react';
+import { Bot, Trash2, Settings, LogOut, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,6 +8,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
+
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.14';
 
 interface ChatHeaderProps {
   sessionId: string;
@@ -24,15 +26,9 @@ export function ChatHeader({ sessionId, onClearChat }: ChatHeaderProps) {
           <Bot className="w-5 h-5 text-white" />
         </div>
         <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-sm font-semibold text-foreground">CCoE Operations Assistant</h1>
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-              <Radio className="w-2.5 h-2.5" />
-              SSE
-            </span>
-          </div>
+          <h1 className="text-sm font-semibold text-foreground">CCoE Operations Assistant</h1>
           <p className="text-[10px] text-muted-foreground">
-            Session: {sessionId.slice(0, 8)}...
+            v{APP_VERSION} • Session: {sessionId.slice(0, 8)}...
           </p>
         </div>
       </div>
