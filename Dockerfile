@@ -3,6 +3,10 @@
 # =============================================================================
 FROM node:18-alpine AS frontend-builder
 
+# Build-time version injected into Vite (must be present during `npm run build`)
+ARG APP_VERSION=0.0.0
+ENV VITE_APP_VERSION=$APP_VERSION
+
 WORKDIR /app
 
 # Copy frontend package files
