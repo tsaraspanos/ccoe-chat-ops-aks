@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
 
-const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.14';
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.15';
 
 interface ChatHeaderProps {
   sessionId: string;
