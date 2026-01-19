@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - name: ccoe-chat-ops
-          image: acrmsadevgwci74k.azurecr.io/ccoe-chat-ops:1.0.16
+          image: acrmsadevgwci74k.azurecr.io/ccoe-chat-ops:1.0.17
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
