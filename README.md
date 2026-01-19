@@ -5,6 +5,7 @@ A full-stack TypeScript chat UI microservice designed for Azure Kubernetes Servi
 ## Architecture
 
 ```
+![Architecture](docs/architecture.drawio.png)
 ┌─────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                      Architecture                                            │
 └─────────────────────────────────────────────────────────────────────────────────────────────┘
