@@ -4,52 +4,62 @@ A full-stack TypeScript chat UI microservice designed for Azure Kubernetes Servi
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    subgraph "User Browser"
-        UI[React Chat UI]
-    end
-    
-    subgraph "Azure Kubernetes Service"
-        subgraph "Istio Service Mesh"
-            GW[Istio Gateway<br/>dei-gateway]
-            VS[VirtualService]
-        end
-        
-        subgraph "ccoe-chat-ops namespace"
-            SVC[K8s Service<br/>:80]
-            POD1[Pod 1<br/>Express Server :8080]
-            POD2[Pod 2<br/>Express Server :8080]
-        end
-    end
-    
-    subgraph "n8n Instance"
-        N8N[n8n Workflows<br/>n8n-dev.dei.gr]
-    end
-    
-    %% User sends message through backend proxy
-    UI -->|"1. POST /api/chat<br/>(message + sessionId)"| GW
-    GW --> VS --> SVC --> POD1
-    POD1 -->|"2. Proxy to n8n<br/>(webhook URL hidden)"| N8N
-    
-    %% n8n returns immediate acknowledgment
-    N8N -->|"3. Response: {runID, status: 'in_progress'}"| POD1
-    POD1 -->|"4. Forward response"| UI
-    
-    %% UI subscribes to SSE
-    UI -->|"5. GET /api/webhook/stream/:runID<br/>(SSE connection)"| GW
-    
-    %% n8n workflow completes and posts update
-    N8N -->|"6. POST /api/webhook/update<br/>{jobId, status: 'completed', answer}"| GW
-    
-    %% SSE pushes to client
-    POD1 -.->|"7. SSE: {status: 'completed', answer}"| UI
-    
-    style UI fill:#4a90d9,stroke:#2d5a87,color:#fff
-    style N8N fill:#ff6d5a,stroke:#cc4a3a,color:#fff
-    style GW fill:#9b59b6,stroke:#7d3c98,color:#fff
-    style POD1 fill:#2ecc71,stroke:#1e8449,color:#fff
-    style POD2 fill:#2ecc71,stroke:#1e8449,color:#fff
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                      Architecture                                            │
+└─────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────┐                                                    ┌──────────────────────┐
+│   User Browser   │                                                    │    n8n Instance      │
+│ ┌──────────────┐ │                                                    │ ┌──────────────────┐ │
+│ │ React Chat UI│ │                                                    │ │  n8n Workflows   │ │
+│ └──────────────┘ │                                                    │ │  n8n-dev.dei.gr  │ │
+└────────┬─────────┘                                                    └──────────┬───────────┘
+         │                                                                         │
+         │ 1. POST /api/chat (message + sessionId)                                 │
+         ▼                                                                         │
+┌─────────────────────────────────────────────────────────────────────────────────────────────┐
+│                              Azure Kubernetes Service                                        │
+│  ┌───────────────────────────────────────────────────────────────────────────────────────┐  │
+│  │                              Istio Service Mesh                                       │  │
+│  │  ┌─────────────────────┐         ┌─────────────────────┐                              │  │
+│  │  │   Istio Gateway     │────────▶│   VirtualService    │                              │  │
+│  │  │   dei-gateway       │         │                     │                              │  │
+│  │  └─────────────────────┘         └──────────┬──────────┘                              │  │
+│  └──────────────────────────────────────────────┼────────────────────────────────────────┘  │
+│                                                 │                                            │
+│  ┌──────────────────────────────────────────────┼────────────────────────────────────────┐  │
+│  │                       ccoe-chat-ops namespace│                                        │  │
+│  │                                              ▼                                        │  │
+│  │                              ┌─────────────────────┐                                  │  │
+│  │                              │    K8s Service      │                                  │  │
+│  │                              │       :80           │                                  │  │
+│  │                              └──────────┬──────────┘                                  │  │
+│  │                                         │                                             │  │
+│  │                        ┌────────────────┴────────────────┐                            │  │
+│  │                        ▼                                 ▼                            │  │
+│  │           ┌─────────────────────┐           ┌─────────────────────┐                   │  │
+│  │           │       Pod 1         │           │       Pod 2         │                   │  │
+│  │           │  Express Server     │           │  Express Server     │                   │  │
+│  │           │      :8080          │           │      :8080          │                   │  │
+│  │           └──────────┬──────────┘           └─────────────────────┘                   │  │
+│  └──────────────────────┼────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────┼────────────────────────────────────────────────────────────────────┘
+                          │
+                          │ 2. Proxy to n8n (webhook URL hidden)
+                          └──────────────────────────────────────────────▶ n8n Workflows
+                                                                                 │
+         ◀───────────────────────────────────────────────────────────────────────┘
+         │ 3. Response: {runID, status: 'in_progress'}
+         │
+         │ 5. GET /api/webhook/stream/:runID (SSE connection)
+         ▼                                                                         │
+      Backend ◀──────────────────────────────────────────────────────────────────────
+                6. POST /api/webhook/update {jobId, status: 'completed', answer}
+         │
+         │ 7. SSE: {status: 'completed', answer}
+         ▼
+   User Browser
 ```
 
 ### Communication Flow
